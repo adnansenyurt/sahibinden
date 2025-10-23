@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Sahibinden Notes",
+  "description": "Add and sync private notes for ads on sahibinden.com using a remote REST API.",
+  "version": "1.0.0",
+  "author": "Adnan Şenyurt",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.sahibinden.com/*",
+    "http://localhost:3000/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Sahibinden Notes",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "styles.css",
+        "icons/star.svg"
+      ],
+      "matches": ["*://www.sahibinden.com/*"]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src * 'self'"
+  },
+  "update_url": "https://clients2.google.com/service/update2/crx",
+  "minimum_chrome_version": "118",
+  "content_scripts": [
+    {
+      "matches": ["*://*.sahibinden.com/*"],
+      "css": ["content.css"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

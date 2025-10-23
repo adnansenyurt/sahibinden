@@ -1,0 +1,114 @@
+@charset "UTF-8";
+body {
+  width: 300px;
+  padding: 15px;
+  font-family: Arial, sans-serif;
+}
+
+button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+button:hover {
+  opacity: 0.9;
+}
+
+#result {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  line-height: 1.4;
+}
+
+#result.loading {
+  background: #fff3cd;
+}
+
+#result.success {
+  background: #d4edda;
+}
+
+#result.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status {
+  font-weight: bold;
+  color: #155724;
+}
+
+.time {
+  color: #666;
+}
+
+/* Add a small star via ::after when row has a note; no extra DOM nodes */
+#searchResultsTable tbody tr.sahi-has-note .classifiedImage::after {
+  content: "★";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 18px;
+  text-shadow: 0 0 2px #000;
+}
+
+.sahibinden-note-box {
+    position: absolute !important;
+    left: -220px !important;
+    top: 0 !important;
+    width: 200px !important;
+    height: 100% !important;
+    background: #fff !important;
+    border: 1px solid #ccc !important;
+    z-index: 999999 !important;
+    padding: 5px !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: all !important;
+    transform: none !important;
+    clip: auto !important;
+    overflow: visible !important;
+}
+
+.sahibinden-note-box * {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.sahibinden-note-box textarea {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    resize: none !important;
+    padding: 4px;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+}
+
+.note-star {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    background: yellow;
+    border-radius: 50%;
+    z-index: 999;
+}
+
+.sahibinden-note-box button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+}

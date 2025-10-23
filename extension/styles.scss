@@ -1,0 +1,51 @@
+// Variables
+$primary-color: #4CAF50;
+$background-light: #f5f5f5;
+$padding-base: 15px;
+$border-radius: 4px;
+
+// Base styles
+body { 
+  width: 300px; 
+  padding: $padding-base; 
+  font-family: Arial, sans-serif; 
+}
+
+// Components
+button { 
+  background: $primary-color;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: $border-radius;
+  cursor: pointer;
+  
+  &:hover {
+    opacity: 0.9;
+  }
+}
+
+#result {
+  margin-top: 10px;
+  padding: 10px;
+  background: $background-light;
+  border-radius: $border-radius;
+  white-space: pre-wrap;
+}
+
+// Utility classes
+.status {
+  &-ok {
+    color: $primary-color;
+    font-weight: bold;
+  }
+}
+
+/* Add a small star via ::after when row has a note; no extra DOM nodes */
+#searchResultsTable tbody tr.sahi-has-note .classifiedImage::after {
+  content: "★";
+  position: absolute;
+  top: 5px; right: 5px;
+  font-size: 18px;
+  text-shadow: 0 0 2px #000;
+}
