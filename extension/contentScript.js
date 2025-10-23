@@ -1,16 +1,11 @@
 (() => {
   try {
-    console.log('[sahi] content script boot', location.href);
-
-    // Allow only sahibinden.com and its subdomains
     const host = location.hostname;
     const isAllowedHost = host === 'sahibinden.com' || host.endsWith('.sahibinden.com');
     if (!isAllowedHost) {
-      console.log(`[sahi] not allowed host: ${host}`);
       return;
     }
 
-    // Prevent duplicate initialization
     const EXTENSION_ID = 'sahi-hover-logger';
     if (window[EXTENSION_ID]) return;
     window[EXTENSION_ID] = true;
@@ -23,10 +18,8 @@
       initialize();
     }
 
-    // Track a single open row/box globally
     let OPEN_ROW = null;
 
-    // Add: simple localStorage helpers for notes
     const SAVE_DEBOUNCE_MS = 300;
     const saveTimers = new Map();
     const noteKey = (id) => `sahi:note:${id}`;
@@ -42,13 +35,39 @@
       saveTimers.set(adId, t);
     }
 
+    // Helper: compute and apply box position aligned to the image; clamp in viewport
+    function positionNoteBox(row, box) {
+      const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
+      const cellRect = firstCell.getBoundingClientRect ? firstCell.getBoundingClientRect() : row.getBoundingClientRect();
+      const img = firstCell.querySelector?.('img');
+      const refRect = img?.getBoundingClientRect ? img.getBoundingClientRect() : cellRect;
+
+      const BOX_WIDTH = 220;
+      const height = Math.max(24, refRect.height);
+
+      // Prefer right of the image; if not enough space, place to the left of the cell
+      let left = refRect.right + 8;
+      if (left + BOX_WIDTH > window.innerWidth - 4) {
+        left = Math.max(4, cellRect.left - BOX_WIDTH - 8);
+      }
+
+      const top = Math.max(4, Math.min(window.innerHeight - height - 4, refRect.top));
+
+      box.style.top = `${top}px`;
+      box.style.left = `${left}px`;
+      box.style.height = `${height}px`;
+      box.style.width = `${BOX_WIDTH}px`;
+    }
+
     // Helper to force-close a row's note box and clear styles
     function forceCloseRow(row) {
       if (!row) return;
-      const prevId = getAdId(row) || 'unknown';
-      console.log('[sahi] force close previous row', prevId);
       row.__sahiRowHover = false;
       row.__sahiBoxHover = false;
+      try { row.__sahiPosCleanup?.(); } catch (_) {}
+      row.__sahiPosCleanup = null;
+      try { row.__sahiImgResizeObs?.disconnect?.(); } catch (_) {}
+      row.__sahiImgResizeObs = null;
       if (row.__sahiNoteBox?.isConnected) {
         try { row.__sahiNoteBox.remove(); } catch (_) {}
       }
@@ -84,7 +103,6 @@
         }
 
         window.addEventListener('unload', () => observer.disconnect(), { passive: true });
-        console.log('[sahi] init complete');
       } catch (e) {
         console.error('Error during init:', e);
       }
@@ -100,6 +118,10 @@
 
       const maybeClose = () => {
         if (!row.__sahiRowHover && !row.__sahiBoxHover) {
+          try { row.__sahiPosCleanup?.(); } catch (_) {}
+          row.__sahiPosCleanup = null;
+          try { row.__sahiImgResizeObs?.disconnect?.(); } catch (_) {}
+          row.__sahiImgResizeObs = null;
           if (row.__sahiNoteBox?.isConnected) {
             try { row.__sahiNoteBox.remove(); } catch (_) {}
           }
@@ -118,7 +140,6 @@
         }
 
         const adId = getAdId(row) || 'unknown';
-        console.log('[sahi] row enter', adId);
 
         row.__sahiRowHover = true;
         row.style.outline = '3px solid red';
@@ -131,18 +152,6 @@
         }
 
         // Create a floating editable note box to the right of the image cell showing the row id
-        const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
-        const rect = firstCell.getBoundingClientRect ? firstCell.getBoundingClientRect() : row.getBoundingClientRect();
-        const BOX_WIDTH = 220;
-        const height = Math.max(100, rect.height);
-
-        // Prefer right side; if not enough space, place to the left
-        let left = rect.right + 8;
-        if (left + BOX_WIDTH > window.innerWidth - 4) {
-          left = Math.max(4, rect.left - BOX_WIDTH - 8);
-        }
-        const top = Math.max(4, Math.min(window.innerHeight - height - 4, rect.top));
-
         const box = document.createElement('div');
         box.className = 'sahi-note-box';
         box.innerHTML = `
@@ -151,10 +160,10 @@
         `;
         Object.assign(box.style, {
           position: 'fixed',
-          top: `${top}px`,
-          left: `${left}px`,
-          height: `${height}px`,
-          width: `${BOX_WIDTH}px`,
+          top: '0px',
+          left: '0px',
+          height: '0px',
+          width: '0px',
           background: '#fff',
           color: '#000',
           border: '1px solid #ccc',
@@ -168,6 +177,34 @@
         document.body.appendChild(box);
         row.__sahiNoteBox = box;
         OPEN_ROW = row;
+
+        // Position now and keep in sync with scroll/resize
+        const onPos = () => positionNoteBox(row, box);
+        onPos();
+        window.addEventListener('scroll', onPos, { passive: true });
+        window.addEventListener('resize', onPos, { passive: true });
+
+        // Also reposition when the image loads or resizes (lazy-loaded images)
+        const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
+        const img = firstCell.querySelector?.('img');
+        if (img) {
+          // ResizeObserver for dimension changes
+          if ('ResizeObserver' in window) {
+            const ro = new ResizeObserver(() => onPos());
+            ro.observe(img);
+            row.__sahiImgResizeObs = ro;
+          }
+          // In case image loads later
+          if (!img.complete) {
+            const onLoad = () => requestAnimationFrame(onPos);
+            img.addEventListener('load', onLoad, { once: true });
+          }
+        }
+
+        row.__sahiPosCleanup = () => {
+          window.removeEventListener('scroll', onPos);
+          window.removeEventListener('resize', onPos);
+        };
 
         // Keep open while hovering the box
         box.addEventListener('mouseenter', () => { row.__sahiBoxHover = true; }, { passive: true });
@@ -184,7 +221,6 @@
 
       row.addEventListener('mouseleave', () => {
         const adId = getAdId(row) || 'unknown';
-        console.log('[sahi] row leave', adId);
         row.__sahiRowHover = false;
         setTimeout(maybeClose, 150);
       });
