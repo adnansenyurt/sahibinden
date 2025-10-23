@@ -76,31 +76,105 @@
       row.style.outlineOffset = '';
     }
 
+    // Small star overlay helpers
+    function ensureStar(row) {
+      try {
+        const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
+        if (!firstCell) return;
+        // Make sure star positions correctly
+        if (getComputedStyle(firstCell).position === 'static') {
+          firstCell.style.position = 'relative';
+        }
+        // If star already exists, nothing to do
+        if (row.__sahiStarEl?.isConnected) return;
+
+        const star = document.createElement('div');
+        star.className = 'sahi-note-star';
+        star.textContent = '★';
+        Object.assign(star.style, {
+          position: 'absolute',
+          top: '4px',
+          right: '4px',
+          fontSize: '16px',
+          lineHeight: '16px',
+          color: '#f5c518', // gold-ish
+          textShadow: '0 1px 2px rgba(0,0,0,0.35)',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        });
+        firstCell.appendChild(star);
+        row.__sahiStarEl = star;
+      } catch (_) {}
+    }
+
+    function removeStar(row) {
+      try {
+        if (row.__sahiStarEl?.isConnected) row.__sahiStarEl.remove();
+      } catch (_) {}
+      row.__sahiStarEl = null;
+    }
+
+    function refreshRowStar(row) {
+      const adId = getAdId(row);
+      if (!adId) {
+        // Retry once shortly after in case DOM populates later
+        if (!row.__sahiStarRetry) {
+          row.__sahiStarRetry = true;
+          setTimeout(() => {
+            row.__sahiStarRetry = false;
+            refreshRowStar(row);
+          }, 300);
+        }
+        removeStar(row);
+        return;
+      }
+      const note = loadNote(adId);
+      if ((note || '').trim()) ensureStar(row);
+      else removeStar(row);
+    }
+
+    // New: refresh stars for all current rows
+    function refreshAllStars() {
+      document.querySelectorAll(ROW_SEL).forEach(refreshRowStar);
+    }
+
     function initialize() {
       try {
         const observer = new MutationObserver((mutations) => {
+          let changed = false;
           for (const m of mutations) {
             if (m.type !== 'childList') continue;
             m.addedNodes.forEach(node => {
               if (node.nodeType !== 1) return;
               if (node.matches?.(ROW_SEL)) {
                 attachRow(node);
+                changed = true;
               } else {
-                node.querySelectorAll?.(ROW_SEL)?.forEach(attachRow);
+                const rows = node.querySelectorAll?.(ROW_SEL);
+                if (rows?.length) {
+                  rows.forEach(attachRow);
+                  changed = true;
+                }
               }
             });
           }
+          if (changed) refreshAllStars();
         });
 
-        // Prefer observing the tbody if available
+        // Prefer observing the tbody if present
         const tableBody = document.querySelector('#searchResultsTable tbody');
         if (tableBody) {
           observer.observe(tableBody, { childList: true, subtree: true });
           wireAll(tableBody);
+          refreshAllStars();
         } else {
           observer.observe(document.body, { childList: true, subtree: true });
           wireAll(document);
+          refreshAllStars();
         }
+
+        // One more pass shortly after load to catch late-populated IDs
+        setTimeout(refreshAllStars, 600);
 
         window.addEventListener('unload', () => observer.disconnect(), { passive: true });
       } catch (e) {
@@ -131,6 +205,9 @@
           if (OPEN_ROW === row) OPEN_ROW = null;
         }
       };
+
+      // Show star immediately based on saved note
+      refreshRowStar(row);
 
       row.addEventListener('mouseenter', () => {
         // Close previously open row/box, if any
@@ -216,7 +293,12 @@
         // Load saved note and save on edit (debounced)
         const ta = box.querySelector('textarea');
         ta.value = loadNote(adId);
-        ta.addEventListener('input', () => scheduleSave(adId, ta.value));
+        ta.addEventListener('input', () => {
+          scheduleSave(adId, ta.value);
+          // Update star immediately as user types
+          if ((ta.value || '').trim()) ensureStar(row);
+          else removeStar(row);
+        });
       });
 
       row.addEventListener('mouseleave', () => {
