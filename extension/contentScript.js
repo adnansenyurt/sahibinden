@@ -138,6 +138,153 @@
       document.querySelectorAll(ROW_SEL).forEach(refreshRowStar);
     }
 
+    // ---- Token helpers (chrome.storage.local with localStorage fallback) ----
+    const getLocal = (k) => new Promise((res) => {
+      if (chrome?.storage?.local) chrome.storage.local.get(k, v => res(v?.[k]));
+      else res(null);
+    });
+    const setLocal = (obj) => new Promise((res) => {
+      if (chrome?.storage?.local) chrome.storage.local.set(obj, res);
+      else { Object.entries(obj).forEach(([k, v]) => { try { localStorage.setItem(k, v || ''); } catch {} }); res(); }
+    });
+
+    async function getStoredToken() {
+      const fromChrome = await getLocal('sahi:jwt');
+      if (fromChrome) return fromChrome;
+      try { return localStorage.getItem('sahi:jwt') || ''; } catch { return ''; }
+    }
+    async function setStoredToken(t) {
+      await setLocal({ 'sahi:jwt': t || '' });
+      try { localStorage.setItem('sahi:jwt', t || ''); } catch {}
+    }
+    async function ensureToken(interactive = true) {
+      let t = await getStoredToken();
+      if (!t && interactive) {
+        t = prompt('Enter API token for notes sync') || '';
+        if (t) await setStoredToken(t);
+      }
+      return t;
+    }
+
+    // ---- Sync logic (shared by popup and in-page button) ----
+    const SERVER_BASE = 'http://localhost:3000';
+    function collectAllNotes() {
+      const items = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || !k.startsWith('sahi:note:')) continue;
+          const adId = k.slice('sahi:note:'.length);
+          const note = localStorage.getItem(k) || '';
+          if ((note || '').trim()) items.push({ adId, note });
+        }
+      } catch (_) {}
+      return items;
+    }
+    async function postNote(adId, note, token) {
+      return fetch(`${SERVER_BASE}/api/notes/${encodeURIComponent(adId)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`
+        },
+        mode: 'cors',
+        body: JSON.stringify({ note })
+      });
+    }
+    async function doSyncNotes() {
+      const items = collectAllNotes();
+      if (!items.length) return { ok: true, count: 0 };
+      let token = await ensureToken(true);
+      if (!token) return { ok: false, error: 'no_token' };
+
+      for (const it of items) {
+        try {
+          let res = await postNote(it.adId, it.note, token);
+          if (res.status === 401) {
+            token = await ensureToken(true);
+            if (!token) return { ok: false, error: 'no_token' };
+            res = await postNote(it.adId, it.note, token);
+          }
+          if (!res.ok) return { ok: false, error: 'http' };
+        } catch {
+          return { ok: false, error: 'network' };
+        }
+      }
+      return { ok: true, count: items.length };
+    }
+
+    function setSyncBtnState(btn, label, loading) {
+      btn.textContent = label;
+      btn.disabled = !!loading;
+      btn.style.opacity = loading ? '0.7' : '1';
+      btn.style.cursor = loading ? 'default' : 'pointer';
+    }
+
+    async function syncAllNotes(btn) {
+      const items = collectAllNotes();
+      if (!items.length) {
+        setSyncBtnState(btn, 'No notes', false);
+        setTimeout(() => setSyncBtnState(btn, 'Sync notes', false), 1200);
+        return;
+      }
+      setSyncBtnState(btn, 'Syncing…', true);
+
+      let token = await ensureToken(true);
+      if (!token) {
+        setSyncBtnState(btn, 'Token required', false);
+        setTimeout(() => setSyncBtnState(btn, 'Sync notes', false), 1500);
+        return;
+      }
+
+      let okAll = true;
+      for (const it of items) {
+        try {
+          let res = await postNote(it.adId, it.note, token);
+          if (res.status === 401) {
+            // prompt for token once and retry this note
+            token = await ensureToken(true);
+            if (!token) { okAll = false; break; }
+            res = await postNote(it.adId, it.note, token);
+          }
+          if (!res.ok) { okAll = false; break; }
+        } catch {
+          okAll = false; break;
+        }
+      }
+
+      if (okAll) {
+        setSyncBtnState(btn, 'Synced ✓', false);
+        setTimeout(() => setSyncBtnState(btn, 'Sync notes', false), 1200);
+      } else {
+        setSyncBtnState(btn, 'Retry sync', false);
+      }
+    }
+
+    function ensureSyncButton() {
+      if (document.getElementById('sahi-sync-notes-btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'sahi-sync-notes-btn';
+      btn.textContent = 'Sync notes';
+      btn.title = 'Sync local notes to server';
+      Object.assign(btn.style, {
+        position: 'fixed',
+        bottom: '16px',
+        right: '16px',
+        padding: '8px 12px',
+        background: '#0069d9',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '6px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        font: "12px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial",
+        zIndex: '2147483647',
+        cursor: 'pointer'
+      });
+      btn.addEventListener('click', () => syncAllNotes(btn));
+      document.body.appendChild(btn);
+    }
+
     function initialize() {
       try {
         const observer = new MutationObserver((mutations) => {
@@ -177,6 +324,9 @@
         setTimeout(refreshAllStars, 600);
 
         window.addEventListener('unload', () => observer.disconnect(), { passive: true });
+
+        // Add the Sync Notes button once DOM is ready
+        ensureSyncButton();
       } catch (e) {
         console.error('Error during init:', e);
       }
@@ -323,6 +473,16 @@
         if (m) return m[1];
       }
       return null;
+    }
+
+    // ---- Listen for popup command ----
+    if (chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (msg?.type === 'SAHI_SYNC_NOTES') {
+          doSyncNotes().then(sendResponse).catch(() => sendResponse({ ok: false }));
+          return true; // async
+        }
+      });
     }
   } catch (e) {
     console.error('Global error handler:', e);
