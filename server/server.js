@@ -7,6 +7,47 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
+// NEW: Request/Response logging middleware (GET/POST)
+const requestResponseLogger = (req, res, next) => {
+  if (!['GET', 'POST'].includes(req.method)) return next();
+
+  const { method, originalUrl } = req;
+  const redactedHeaders = { ...req.headers };
+  if (redactedHeaders.authorization) redactedHeaders.authorization = '[REDACTED]';
+
+  console.log(`[REQ] ${method} ${originalUrl}`, {
+    headers: redactedHeaders,
+    params: req.params,
+    query: req.query,
+    body: req.body,
+  });
+
+  const oldJson = res.json.bind(res);
+  const oldSend = res.send.bind(res);
+
+  const logResponse = (payload) => {
+    let out = payload;
+    try {
+      if (Buffer.isBuffer(payload)) out = payload.toString('utf8');
+    } catch (_) {}
+    console.log(`[RES] ${method} ${originalUrl} ${res.statusCode}`, out);
+  };
+
+  res.json = (body) => {
+    logResponse(body);
+    return oldJson(body);
+  };
+
+  res.send = (body) => {
+    logResponse(body);
+    return oldSend(body);
+  };
+
+  next();
+};
+
+app.use(requestResponseLogger);
+
 // Handle devtools request
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
     res.json({});
@@ -41,17 +82,41 @@ const authMiddleware = (req, res, next) => {
 
 // Note endpoints
 app.post('/api/notes/:adId', authMiddleware, (req, res) => {
-  const { adId } = req.params;
-  const { note } = req.body;
-  notes.set(adId, { note, updatedAt: new Date().toISOString() });
-  res.json({ success: true });
+  const pathAdId = req.params.adId;
+  const payload = req.body || {};
+  let { rowId, note } = payload;
+
+  // Infer rowId from path if not provided in body
+  if (rowId == null) rowId = pathAdId;
+
+  if (!rowId) {
+    return res.status(400).json({ error: 'rowId is required (in body or path)' });
+  }
+  // Only enforce mismatch if body explicitly provided rowId
+  if (payload.rowId && pathAdId && payload.rowId !== pathAdId) {
+    return res.status(400).json({ error: 'rowId in body does not match adId in path' });
+  }
+  if (typeof note !== 'string' || !note.trim()) {
+    return res.status(400).json({ error: 'note is required and must be a non-empty string' });
+  }
+
+  // Ensure rowId is present; drop any accidental success flag
+  const toStore = { rowId, ...payload };
+  delete toStore.success;
+
+  // Ensure updatedAt exists if the extension didn't provide it
+  if (!toStore.updatedAt) {
+    toStore.updatedAt = new Date().toISOString();
+  }
+
+  notes.set(rowId, toStore);
+
+  return res.json({ success: true, ...toStore });
 });
 
 app.get('/api/notes', authMiddleware, (req, res) => {
-  res.json(Array.from(notes.entries()).map(([adId, data]) => ({
-    adId,
-    ...data
-  })));
+  // Return stored notes exactly as posted
+  res.json(Array.from(notes.values()));
 });
 
 app.listen(PORT, () => {
