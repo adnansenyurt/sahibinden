@@ -26,6 +26,22 @@
     // Track a single open row/box globally
     let OPEN_ROW = null;
 
+    // Add: simple localStorage helpers for notes
+    const SAVE_DEBOUNCE_MS = 300;
+    const saveTimers = new Map();
+    const noteKey = (id) => `sahi:note:${id}`;
+    function loadNote(adId) {
+      try { return localStorage.getItem(noteKey(adId)) || ''; } catch { return ''; }
+    }
+    function scheduleSave(adId, text) {
+      clearTimeout(saveTimers.get(adId));
+      const t = setTimeout(() => {
+        try { localStorage.setItem(noteKey(adId), text || ''); } catch {}
+        saveTimers.delete(adId);
+      }, SAVE_DEBOUNCE_MS);
+      saveTimers.set(adId, t);
+    }
+
     // Helper to force-close a row's note box and clear styles
     function forceCloseRow(row) {
       if (!row) return;
@@ -117,6 +133,15 @@
         // Create a floating editable note box to the right of the image cell showing the row id
         const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
         const rect = firstCell.getBoundingClientRect ? firstCell.getBoundingClientRect() : row.getBoundingClientRect();
+        const BOX_WIDTH = 220;
+        const height = Math.max(100, rect.height);
+
+        // Prefer right side; if not enough space, place to the left
+        let left = rect.right + 8;
+        if (left + BOX_WIDTH > window.innerWidth - 4) {
+          left = Math.max(4, rect.left - BOX_WIDTH - 8);
+        }
+        const top = Math.max(4, Math.min(window.innerHeight - height - 4, rect.top));
 
         const box = document.createElement('div');
         box.className = 'sahi-note-box';
@@ -126,10 +151,10 @@
         `;
         Object.assign(box.style, {
           position: 'fixed',
-          top: `${rect.top}px`,
-          left: `${rect.right + 8}px`,
-          height: `${rect.height}px`,
-          minWidth: '160px',
+          top: `${top}px`,
+          left: `${left}px`,
+          height: `${height}px`,
+          width: `${BOX_WIDTH}px`,
           background: '#fff',
           color: '#000',
           border: '1px solid #ccc',
@@ -150,6 +175,11 @@
           row.__sahiBoxHover = false;
           setTimeout(maybeClose, 150);
         }, { passive: true });
+
+        // Load saved note and save on edit (debounced)
+        const ta = box.querySelector('textarea');
+        ta.value = loadNote(adId);
+        ta.addEventListener('input', () => scheduleSave(adId, ta.value));
       });
 
       row.addEventListener('mouseleave', () => {
