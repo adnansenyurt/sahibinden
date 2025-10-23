@@ -23,6 +23,24 @@
       initialize();
     }
 
+    // Track a single open row/box globally
+    let OPEN_ROW = null;
+
+    // Helper to force-close a row's note box and clear styles
+    function forceCloseRow(row) {
+      if (!row) return;
+      const prevId = getAdId(row) || 'unknown';
+      console.log('[sahi] force close previous row', prevId);
+      row.__sahiRowHover = false;
+      row.__sahiBoxHover = false;
+      if (row.__sahiNoteBox?.isConnected) {
+        try { row.__sahiNoteBox.remove(); } catch (_) {}
+      }
+      row.__sahiNoteBox = null;
+      row.style.outline = '';
+      row.style.outlineOffset = '';
+    }
+
     function initialize() {
       try {
         const observer = new MutationObserver((mutations) => {
@@ -64,25 +82,54 @@
       if (!row || row.__sahiWired) return;
       row.__sahiWired = true;
 
+      const maybeClose = () => {
+        if (!row.__sahiRowHover && !row.__sahiBoxHover) {
+          if (row.__sahiNoteBox?.isConnected) {
+            try { row.__sahiNoteBox.remove(); } catch (_) {}
+          }
+          row.__sahiNoteBox = null;
+          row.style.outline = '';
+          row.style.outlineOffset = '';
+          if (OPEN_ROW === row) OPEN_ROW = null;
+        }
+      };
+
       row.addEventListener('mouseenter', () => {
-        console.log('[sahi] row enter');
+        // Close previously open row/box, if any
+        if (OPEN_ROW && OPEN_ROW !== row) {
+          forceCloseRow(OPEN_ROW);
+          OPEN_ROW = null;
+        }
+
+        const adId = getAdId(row) || 'unknown';
+        console.log('[sahi] row enter', adId);
+
+        row.__sahiRowHover = true;
         row.style.outline = '3px solid red';
         row.style.outlineOffset = '-1px';
 
-        // Create a floating note box to the right of the image cell showing the row id
-        const adId = getAdId(row) || 'unknown';
+        // If already open for this row, just mark as current
+        if (row.__sahiNoteBox?.isConnected) {
+          OPEN_ROW = row;
+          return;
+        }
+
+        // Create a floating editable note box to the right of the image cell showing the row id
         const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
         const rect = firstCell.getBoundingClientRect ? firstCell.getBoundingClientRect() : row.getBoundingClientRect();
 
         const box = document.createElement('div');
         box.className = 'sahi-note-box';
-        box.textContent = `ID: ${adId}`;
+        box.innerHTML = `
+          <div style="font-weight:600;margin-bottom:6px">ID: ${adId}</div>
+          <textarea placeholder="Enter note..." style="width:100%;height:calc(100% - 24px);border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;"></textarea>
+        `;
         Object.assign(box.style, {
           position: 'fixed',
           top: `${rect.top}px`,
           left: `${rect.right + 8}px`,
           height: `${rect.height}px`,
-          minWidth: '120px',
+          minWidth: '160px',
           background: '#fff',
           color: '#000',
           border: '1px solid #ccc',
@@ -91,21 +138,25 @@
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           font: "12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial",
           zIndex: '2147483647',
-          pointerEvents: 'none'
+          pointerEvents: 'auto'
         });
         document.body.appendChild(box);
         row.__sahiNoteBox = box;
+        OPEN_ROW = row;
+
+        // Keep open while hovering the box
+        box.addEventListener('mouseenter', () => { row.__sahiBoxHover = true; }, { passive: true });
+        box.addEventListener('mouseleave', () => {
+          row.__sahiBoxHover = false;
+          setTimeout(maybeClose, 150);
+        }, { passive: true });
       });
 
       row.addEventListener('mouseleave', () => {
-        console.log('[sahi] row leave');
-        row.style.outline = '';
-        row.style.outlineOffset = '';
-
-        if (row.__sahiNoteBox && row.__sahiNoteBox.isConnected) {
-          try { row.__sahiNoteBox.remove(); } catch (_) {}
-        }
-        row.__sahiNoteBox = null;
+        const adId = getAdId(row) || 'unknown';
+        console.log('[sahi] row leave', adId);
+        row.__sahiRowHover = false;
+        setTimeout(maybeClose, 150);
       });
     }
 
