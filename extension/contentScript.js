@@ -11,6 +11,58 @@
     window[EXTENSION_ID] = true;
 
     const ROW_SEL = '#searchResultsTable tbody tr.searchResultsItem';
+    
+    // ---- Page lock state (per-page) ----
+    const LOCK_KEY_PREFIX = 'sahi:lock:';
+    const LOCK_TS_PREFIX = 'sahi:lock:ts:';
+    const pageKey = () => encodeURIComponent(location.origin + location.pathname + location.search);
+    const lockKey = () => `${LOCK_KEY_PREFIX}${pageKey()}`;
+    const lastUnlockKey = () => `${LOCK_TS_PREFIX}${pageKey()}`;
+    const AUTO_LOCK_MS = 5 * 60 * 1000; // 5 minutes
+    let unlockTimerId = null;
+
+    function isPageUnlocked() {
+      try { return (localStorage.getItem(lockKey()) || 'locked') === 'unlocked'; } catch { return false; }
+    }
+    function getLastUnlockTs() {
+      try {
+        const v = localStorage.getItem(lastUnlockKey());
+        return v ? Number(v) : 0;
+      } catch { return 0; }
+    }
+    function setLastUnlockTs(ms) {
+      try { localStorage.setItem(lastUnlockKey(), String(ms || Date.now())); } catch {}
+    }
+    function clearAutoRelockTimer() {
+      if (unlockTimerId) {
+        clearTimeout(unlockTimerId);
+        unlockTimerId = null;
+      }
+    }
+    function scheduleAutoRelock() {
+      clearAutoRelockTimer();
+      if (!isPageUnlocked()) return;
+      let ts = getLastUnlockTs();
+      if (!ts) { ts = Date.now(); setLastUnlockTs(ts); }
+      const remaining = ts + AUTO_LOCK_MS - Date.now();
+      if (remaining <= 0) {
+        setPageLocked(true);
+        return;
+      }
+      unlockTimerId = setTimeout(() => {
+        setPageLocked(true);
+      }, remaining);
+    }
+    function setPageLocked(locked) {
+      try { localStorage.setItem(lockKey(), locked ? 'locked' : 'unlocked'); } catch {}
+      if (!locked) {
+        setLastUnlockTs(Date.now());
+        scheduleAutoRelock();
+      } else {
+        clearAutoRelockTimer();
+      }
+      updateLockButtonUI();
+    }
 
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initialize, { once: true });
@@ -285,6 +337,89 @@
       document.body.appendChild(btn);
     }
 
+    // ---- Lock/Unlock toggle UI ----
+    function ensureLockButton() {
+      if (document.getElementById('sahi-lock-toggle-btn')) return;
+      const btn = document.createElement('button');
+      btn.id = 'sahi-lock-toggle-btn';
+      btn.title = 'Lock/unlock Sahi Notes on this page';
+      Object.assign(btn.style, {
+        position: 'fixed',
+        bottom: '56px', // sit just above the Sync button
+        right: '16px',
+        padding: '0',
+        width: '38px',
+        height: '38px',
+        background: '#6c757d',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '6px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        font: "12px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial",
+        zIndex: '2147483647',
+        cursor: 'pointer',
+        display: 'grid',
+        placeItems: 'center'
+      });
+      btn.addEventListener('click', () => {
+        if (!isPageUnlocked()) {
+          const pwd = prompt('Enter password to unlock');
+          if (pwd === null) return; // cancelled
+          if (pwd === '1234') {
+            setPageLocked(false);
+            flashLockStatus('Unlocked ✓');
+          } else {
+            flashLockStatus('Wrong password');
+          }
+        } else {
+          setPageLocked(true);
+          flashLockStatus('Locked');
+        }
+      });
+      document.body.appendChild(btn);
+      updateLockButtonUI();
+    }
+
+    function updateLockButtonUI() {
+      const btn = document.getElementById('sahi-lock-toggle-btn');
+      if (!btn) return;
+      const unlocked = isPageUnlocked();
+      // Swap icon (inline SVG) and colors
+      const svgLocked = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="#fff" aria-hidden="true">'
+        + '<path d="M12 2a5 5 0 00-5 5v3H6a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2v-8a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm-3 8V7a3 3 0 016 0v3H9zm3 4a2 2 0 110 4 2 2 0 010-4z"/></svg>'
+      );
+      const svgUnlocked = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="#fff" aria-hidden="true">'
+        + '<path d="M17 10h-6V7a3 3 0 116 0h2a5 5 0 10-10 0v3H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2zm-5 4a2 2 0 110 4 2 2 0 010-4z"/></svg>'
+      );
+      btn.innerHTML = unlocked ? svgUnlocked : svgLocked;
+      btn.style.background = unlocked ? '#28a745' : '#6c757d';
+      btn.setAttribute('aria-pressed', String(unlocked));
+      btn.setAttribute('aria-label', unlocked ? 'Page unlocked, click to lock' : 'Page locked, click to unlock');
+      btn.title = unlocked ? 'Click to lock this page' : 'Click to unlock this page';
+    }
+
+    function flashLockStatus(text) {
+      try {
+        const el = document.createElement('div');
+        el.textContent = text;
+        Object.assign(el.style, {
+          position: 'fixed',
+          bottom: '96px',
+          right: '16px',
+          background: 'rgba(0,0,0,0.8)',
+          color: '#fff',
+          padding: '6px 10px',
+          borderRadius: '6px',
+          font: "12px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial",
+          zIndex: '2147483647'
+        });
+        document.body.appendChild(el);
+        setTimeout(() => { try { el.remove(); } catch {} }, 1000);
+      } catch {}
+    }
+
     function initialize() {
       try {
         const observer = new MutationObserver((mutations) => {
@@ -327,6 +462,13 @@
 
         // Add the Sync Notes button once DOM is ready
         ensureSyncButton();
+        // Add Lock/Unlock button (locked by default if not set)
+        if (!localStorage.getItem(lockKey())) {
+          try { localStorage.setItem(lockKey(), 'locked'); } catch {}
+        }
+        ensureLockButton();
+        // If currently unlocked, schedule auto-relock or lock immediately when expired
+        scheduleAutoRelock();
       } catch (e) {
         console.error('Error during init:', e);
       }
