@@ -64,6 +64,63 @@
       updateLockButtonUI();
     }
 
+    // ---- Key handling: keep Enter inside our textareas (declare early to avoid TDZ) ----
+    let __sahiEnterGuardsInstalled = false;
+    function ensureGlobalEnterGuards() {
+      if (__sahiEnterGuardsInstalled) return;
+      const handler = (e) => {
+        try {
+          const t = e.target;
+          if (!(t instanceof Element)) return;
+          if (t.closest?.('.sahi-note-wrap') && (e.key === 'Enter' || e.key === 'Return')) {
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+          }
+        } catch {}
+      };
+      ['keydown','keypress','keyup'].forEach(type => {
+        document.addEventListener(type, handler, true);
+      });
+      __sahiEnterGuardsInstalled = true;
+    }
+
+    function installEnterIsolation(textarea) {
+      try {
+        if (!textarea) return;
+        const onKeyDown = (e) => {
+          if ((e.key === 'Enter' || e.key === 'Return') && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (e.isComposing) return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+            const el = textarea;
+            try {
+              const start = el.selectionStart ?? el.value.length;
+              const end = el.selectionEnd ?? start;
+              const scrollTop = el.scrollTop;
+              const before = el.value.slice(0, start);
+              const after = el.value.slice(end);
+              el.value = `${before}\n${after}`;
+              const caret = start + 1;
+              el.selectionStart = el.selectionEnd = caret;
+              el.scrollTop = scrollTop;
+              const evt = new Event('input', { bubbles: true });
+              el.dispatchEvent(evt);
+            } catch {}
+          }
+        };
+        const onKeyOther = (e) => {
+          if (e.key === 'Enter' || e.key === 'Return') {
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+          }
+        };
+        textarea.addEventListener('keydown', onKeyDown);
+        textarea.addEventListener('keypress', onKeyOther);
+        textarea.addEventListener('keyup', onKeyOther);
+      } catch {}
+    }
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initialize, { once: true });
     } else {
@@ -109,10 +166,13 @@
 
       const BOX_WIDTH = 220;
       const GAP = 8;
-      const height = Math.max(24, refRect.height);
-      // If this is a wrapper with multiple panels, width scales accordingly
-      const panelCount = box.querySelectorAll?.('.sahi-note-panel').length || 1;
-      const totalWidth = panelCount * BOX_WIDTH + (panelCount - 1) * GAP;
+      const minHeight = Math.max(24, refRect.height);
+      // Compute total width based on current state (normal + optional toggle + private)
+      const TOGGLE_W = isPageUnlocked() && row?.__sahiToggleEl?.isConnected ? 18 : 0;
+      const PRIV_W = (isPageUnlocked() && row?.__sahiPrivExpanded) ? BOX_WIDTH : 0;
+      let totalWidth = BOX_WIDTH; // normal panel
+      if (TOGGLE_W) totalWidth += GAP + TOGGLE_W;
+      if (PRIV_W) totalWidth += GAP + PRIV_W;
 
       // Prefer right of the image; if not enough space, place to the left of the cell
       let left = refRect.right + 8;
@@ -120,11 +180,13 @@
         left = Math.max(4, cellRect.left - totalWidth - 8);
       }
 
-      const top = Math.max(4, Math.min(window.innerHeight - height - 4, refRect.top));
+      const top = Math.max(4, Math.min(window.innerHeight - minHeight - 4, refRect.top));
 
       box.style.top = `${top}px`;
       box.style.left = `${left}px`;
-      box.style.height = `${height}px`;
+      // Let height grow with content; enforce minimum equal to row height
+      box.style.minHeight = `${minHeight}px`;
+      box.style.height = 'auto';
       box.style.width = `${totalWidth}px`;
     }
 
@@ -141,6 +203,9 @@
         try { row.__sahiNoteBox.remove(); } catch (_) {}
       }
       row.__sahiNoteBox = null;
+      row.__sahiPrivExpanded = false;
+      row.__sahiPrivStarEl = null;
+      row.__sahiToggleEl = null;
       row.style.outline = '';
       row.style.outlineOffset = '';
     }
@@ -480,6 +545,10 @@
       btn.title = unlocked ? 'Click to lock this page' : 'Click to unlock this page';
       // Update stars/boxes visibility tied to privacy state
       try { refreshAllStars(); } catch {}
+      // Extra safety: when locking, force-remove any existing private stars immediately
+      if (!unlocked) {
+        try { document.querySelectorAll('.sahi-priv-star').forEach(el => el.remove()); } catch {}
+      }
       // If an overlay is open, add/remove private panel accordingly
       try {
         if (OPEN_ROW && OPEN_ROW.__sahiNoteBox?.isConnected) {
@@ -557,6 +626,8 @@
         ensureLockButton();
         // If currently unlocked, schedule auto-relock or lock immediately when expired
         scheduleAutoRelock();
+        // Install global key guards once
+        ensureGlobalEnterGuards();
       } catch (e) {
         console.error('Error during init:', e);
       }
@@ -613,10 +684,11 @@
         box.className = 'sahi-note-wrap';
         box.innerHTML = `
           <div class="sahi-note-header" style="font-weight:600;margin-bottom:6px">ID: ${adId}</div>
-          <div class="sahi-note-panels" style="display:flex;gap:8px;height:calc(100% - 24px);">
-            <div class="sahi-note-panel" data-type="normal" style="flex:0 0 220px;height:100%;display:flex;">
-              <textarea class="sahi-note-ta" placeholder="Enter note..." style="flex:1;width:100%;height:100%;border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;background:#fff;color:#000;"></textarea>
+          <div class="sahi-note-panels" style="display:flex;gap:8px;align-items:stretch;">
+            <div class="sahi-note-panel" data-type="normal" style="flex:0 0 220px;display:flex;">
+              <textarea class="sahi-note-ta" placeholder="Enter note..." style="flex:1;width:100%;height:auto;overflow:hidden;border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;background:#fff;color:#000;"></textarea>
             </div>
+            <!-- toggle and private panel will be injected here -->
           </div>
         `;
         Object.assign(box.style, {
@@ -638,6 +710,7 @@
         document.body.appendChild(box);
         row.__sahiNoteBox = box;
         OPEN_ROW = row;
+        row.__sahiPrivExpanded = false;
 
         // Position now and keep in sync with scroll/resize
         const onPos = () => positionNoteBox(row, box);
@@ -682,13 +755,16 @@
           // Update star immediately as user types
           if ((ta.value || '').trim()) ensureStar(row);
           else removeStar(row);
+          autoResizeTextarea(row, ta);
+          onPos();
         });
+        // Isolate Enter key from page handlers
+        installEnterIsolation(ta);
+        // Initial autoresize
+        autoResizeTextarea(row, ta);
 
-        // Add private panel if unlocked
-        if (isPageUnlocked()) {
-          addPrivatePanelToBox(row, adId);
-          onPos(); // reflow for two panels
-        }
+        // Ensure toggle arrow if unlocked
+        updateOpenRowPrivatePanel(row);
       });
 
       row.addEventListener('mouseleave', () => {
@@ -715,7 +791,7 @@
       return null;
     }
 
-    // ---- Helpers for private panel in the open overlay ----
+  // ---- Helpers for private panel in the open overlay ----
     function addPrivatePanelToBox(row, adId) {
       try {
         const wrap = row.__sahiNoteBox;
@@ -726,11 +802,14 @@
         const panel = document.createElement('div');
         panel.className = 'sahi-note-panel';
         panel.setAttribute('data-type', 'private');
-        panel.style.flex = '0 0 220px';
-        panel.style.height = '100%';
+        panel.style.flex = '0 0 auto';
         panel.style.display = 'flex';
+        panel.style.overflow = 'hidden';
+        panel.style.width = '0px';
+        panel.style.opacity = '0';
+        panel.style.transition = 'width 200ms ease, opacity 200ms ease';
         panel.innerHTML = `
-          <textarea class="sahi-priv-ta" placeholder="Enter private note..." style="flex:1;width:100%;height:100%;border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;background:#ffecec;color:#000;"></textarea>
+          <textarea class="sahi-priv-ta" placeholder="Enter private note..." style="flex:1;width:100%;height:auto;overflow:hidden;border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;background:#ffecec;color:#000;"></textarea>
         `;
         panels.appendChild(panel);
         const taPriv = panel.querySelector('textarea.sahi-priv-ta');
@@ -739,7 +818,14 @@
           schedulePrivSave(adId, taPriv.value);
           if ((taPriv.value || '').trim()) ensurePrivStar(row);
           else removePrivStar(row);
+          autoResizeTextarea(row, taPriv);
+          try { positionNoteBox(row, row.__sahiNoteBox); } catch {}
         });
+        // Isolate Enter key from page handlers
+        installEnterIsolation(taPriv);
+        // Initial autoresize
+        autoResizeTextarea(row, taPriv);
+        row.__sahiPrivPanelEl = panel;
       } catch {}
     }
 
@@ -752,16 +838,109 @@
       } catch {}
     }
 
+
+    function ensureToggleArrow(row) {
+      try {
+        const wrap = row.__sahiNoteBox;
+        if (!wrap?.isConnected) return;
+        const panels = wrap.querySelector('.sahi-note-panels');
+        if (!panels) return;
+        if (row.__sahiToggleEl?.isConnected) return;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'sahi-priv-toggle';
+        toggle.textContent = '▶';
+        toggle.title = 'Show private note';
+        Object.assign(toggle.style, {
+          flex: '0 0 18px',
+          width: '18px',
+          height: '100%',
+          border: '1px solid #ddd',
+          borderRadius: '4px',
+          background: '#f7f7f7',
+          color: '#333',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0'
+        });
+        panels.appendChild(toggle);
+        row.__sahiToggleEl = toggle;
+        const adId = getAdId(row) || 'unknown';
+        toggle.addEventListener('click', () => {
+          if (!isPageUnlocked()) return; // ignore when locked
+          if (!row.__sahiPrivPanelEl) addPrivatePanelToBox(row, adId);
+          const expand = !row.__sahiPrivExpanded;
+          setPrivatePanelExpanded(row, expand);
+        });
+      } catch {}
+    }
+
+    function setPrivatePanelExpanded(row, expand) {
+      try {
+        if (!row?.__sahiNoteBox?.isConnected) return;
+        const panel = row.__sahiPrivPanelEl;
+        const toggle = row.__sahiToggleEl;
+        if (!panel || !toggle) return;
+        row.__sahiPrivExpanded = !!expand;
+        if (expand) {
+          panel.style.width = '220px';
+          panel.style.opacity = '1';
+          toggle.textContent = '◀';
+          toggle.title = 'Hide private note';
+          // After expanding, ensure textarea height fits content
+          const taPriv = panel.querySelector('textarea.sahi-priv-ta');
+          if (taPriv) autoResizeTextarea(row, taPriv);
+        } else {
+          panel.style.width = '0px';
+          panel.style.opacity = '0';
+          toggle.textContent = '▶';
+          toggle.title = 'Show private note';
+        }
+        // Reposition after transition
+        const box = row.__sahiNoteBox;
+        const onEnd = () => { try { positionNoteBox(row, box); } catch {} panel.removeEventListener('transitionend', onEnd); };
+        panel.addEventListener('transitionend', onEnd);
+        // Also update immediately for responsiveness
+        try { positionNoteBox(row, box); } catch {}
+      } catch {}
+    }
+
+    function ensureToggleHidden(row) {
+      try {
+        if (row.__sahiToggleEl?.isConnected) { row.__sahiToggleEl.remove(); }
+        row.__sahiToggleEl = null;
+      } catch {}
+    }
+
     function updateOpenRowPrivatePanel(row) {
       if (!row?.__sahiNoteBox?.isConnected) return;
       const adId = getAdId(row) || 'unknown';
       if (isPageUnlocked()) {
-        addPrivatePanelToBox(row, adId);
+        // Show/ensure toggle; private panel starts collapsed
+        ensureToggleArrow(row);
+        if (row.__sahiPrivPanelEl && !row.__sahiPrivExpanded) {
+          // keep collapsed; no action
+        }
       } else {
-        removePrivatePanelFromBox(row);
+        // Hide toggle and private panel
+        row.__sahiPrivExpanded = false;
+        if (row.__sahiPrivPanelEl) {
+          row.__sahiPrivPanelEl.style.width = '0px';
+          row.__sahiPrivPanelEl.style.opacity = '0';
+        }
+        ensureToggleHidden(row);
       }
-      // Reposition after structure change
       try { positionNoteBox(row, row.__sahiNoteBox); } catch {}
+    }
+
+    // Auto-resize textareas to fit content, enforce minimum box height via positionNoteBox
+    function autoResizeTextarea(row, textarea) {
+      try {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      } catch {}
     }
 
     // ---- Listen for popup command ----
