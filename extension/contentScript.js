@@ -210,15 +210,46 @@
       row.style.outlineOffset = '';
     }
 
+    // Exposed closer helper for star/box timers
+    function tryMaybeClose(row) {
+      try { row?.__sahiMaybeClose?.(); } catch {}
+    }
+
+    // Helpers to locate title cell for star placement
+    function getTitleCell(row) {
+      return row.querySelector?.('td.searchResultsTitleValue, .searchResultsTitleValue') || row.cells?.[1] || row.cells?.[0] || row;
+    }
+    function ensureStarContainer(row) {
+      try {
+        const titleCell = getTitleCell(row);
+        if (!titleCell) return null;
+        if (getComputedStyle(titleCell).position === 'static') {
+          titleCell.style.position = 'relative';
+        }
+        if (row.__sahiStarWrap?.isConnected) return row.__sahiStarWrap;
+        const wrap = document.createElement('div');
+        wrap.className = 'sahi-star-wrap';
+        Object.assign(wrap.style, {
+          position: 'absolute',
+          top: '4px',
+          left: '4px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          zIndex: '2',
+          pointerEvents: 'none' // stars re-enable pointer events
+        });
+        titleCell.appendChild(wrap);
+        row.__sahiStarWrap = wrap;
+        return wrap;
+      } catch { return null; }
+    }
+
     // Small star overlay helpers (normal + private)
     function ensureStar(row) {
       try {
-        const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
-        if (!firstCell) return;
-        // Make sure star positions correctly
-        if (getComputedStyle(firstCell).position === 'static') {
-          firstCell.style.position = 'relative';
-        }
+        const wrap = ensureStarContainer(row);
+        if (!wrap) return;
         // If star already exists, nothing to do
         if (row.__sahiStarEl?.isConnected) return;
 
@@ -226,18 +257,27 @@
         star.className = 'sahi-note-star';
         star.textContent = '★';
         Object.assign(star.style, {
-          position: 'absolute',
-          top: '4px',
-          right: '24px',
+          position: 'relative',
           fontSize: '16px',
           lineHeight: '16px',
           color: '#f5c518', // gold-ish
           textShadow: '0 1px 2px rgba(0,0,0,0.35)',
-          pointerEvents: 'none',
-          userSelect: 'none'
+          pointerEvents: 'auto',
+          userSelect: 'none',
+          cursor: 'pointer'
         });
-        firstCell.appendChild(star);
+        wrap.appendChild(star);
         row.__sahiStarEl = star;
+
+        // Hover behavior: show note box when hovering the star
+        star.addEventListener('mouseenter', () => {
+          row.__sahiStarHover = true;
+          openNoteBox(row, false);
+        });
+        star.addEventListener('mouseleave', () => {
+          row.__sahiStarHover = false;
+          setTimeout(() => tryMaybeClose(row), 150);
+        });
       } catch (_) {}
     }
 
@@ -270,28 +310,34 @@
     function ensurePrivStar(row) {
       try {
         if (!isPageUnlocked()) { removePrivStar(row); return; }
-        const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
-        if (!firstCell) return;
-        if (getComputedStyle(firstCell).position === 'static') {
-          firstCell.style.position = 'relative';
-        }
+        const wrap = ensureStarContainer(row);
+        if (!wrap) return;
         if (row.__sahiPrivStarEl?.isConnected) return;
         const star = document.createElement('div');
         star.className = 'sahi-priv-star';
         star.textContent = '★';
         Object.assign(star.style, {
-          position: 'absolute',
-          top: '4px',
-          right: '4px',
+          position: 'relative',
           fontSize: '16px',
           lineHeight: '16px',
           color: '#e74c3c', // red
           textShadow: '0 1px 2px rgba(0,0,0,0.35)',
-          pointerEvents: 'none',
-          userSelect: 'none'
+          pointerEvents: 'auto',
+          userSelect: 'none',
+          cursor: 'pointer'
         });
-        firstCell.appendChild(star);
+        wrap.appendChild(star);
         row.__sahiPrivStarEl = star;
+
+        // Hover behavior: show note box with private panel when hovering the red star
+        star.addEventListener('mouseenter', () => {
+          row.__sahiStarHover = true;
+          openNoteBox(row, true);
+        });
+        star.addEventListener('mouseleave', () => {
+          row.__sahiStarHover = false;
+          setTimeout(() => tryMaybeClose(row), 150);
+        });
       } catch (_) {}
     }
 
@@ -642,7 +688,7 @@
       row.__sahiWired = true;
 
       const maybeClose = () => {
-        if (!row.__sahiRowHover && !row.__sahiBoxHover) {
+        if (!row.__sahiStarHover && !row.__sahiBoxHover) {
           try { row.__sahiPosCleanup?.(); } catch (_) {}
           row.__sahiPosCleanup = null;
           try { row.__sahiImgResizeObs?.disconnect?.(); } catch (_) {}
@@ -656,26 +702,51 @@
           if (OPEN_ROW === row) OPEN_ROW = null;
         }
       };
+      // expose for star handlers
+      row.__sahiMaybeClose = maybeClose;
+      function tryMaybeClose(r) { r?.__sahiMaybeClose?.(); }
 
       // Show star immediately based on saved note
       refreshRowStar(row);
 
-      row.addEventListener('mouseenter', () => {
+      // NOTE: No row-level hover to open box; stars control it now
+    }
+
+    // Minimal helper to extract an ad/row id
+    function getAdId(row) {
+      const fromData = row.getAttribute?.('data-id') || row.dataset?.id;
+      if (fromData) return fromData;
+      const idAttr = row.getAttribute?.('id');
+      if (idAttr) {
+        const m = idAttr.match(/\d+/);
+        if (m) return m[0];
+      }
+      const a = row.querySelector?.('a[href*="/ilan/"], a[href*="/detay/"], a[href*="ilan/"]');
+      if (a?.href) {
+        const m = a.href.match(/\/(\d+)(?:\?|$|\/)/);
+        if (m) return m[1];
+      }
+      return null;
+    }
+
+  // ---- Helpers for private panel in the open overlay ----
+    function openNoteBox(row, preferPrivate = false) {
+      try {
         // Close previously open row/box, if any
         if (OPEN_ROW && OPEN_ROW !== row) {
           forceCloseRow(OPEN_ROW);
           OPEN_ROW = null;
         }
-
         const adId = getAdId(row) || 'unknown';
 
-        row.__sahiRowHover = true;
-        row.style.outline = '3px solid red';
-        row.style.outlineOffset = '-1px';
-
-        // If already open for this row, just mark as current
+        // If already open for this row, just update state
         if (row.__sahiNoteBox?.isConnected) {
           OPEN_ROW = row;
+          if (preferPrivate && isPageUnlocked()) {
+            ensureToggleArrow(row);
+            if (!row.__sahiPrivPanelEl) addPrivatePanelToBox(row, adId);
+            setPrivatePanelExpanded(row, true);
+          }
           return;
         }
 
@@ -722,13 +793,11 @@
         const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
         const img = firstCell.querySelector?.('img');
         if (img) {
-          // ResizeObserver for dimension changes
           if ('ResizeObserver' in window) {
             const ro = new ResizeObserver(() => onPos());
             ro.observe(img);
             row.__sahiImgResizeObs = ro;
           }
-          // In case image loads later
           if (!img.complete) {
             const onLoad = () => requestAnimationFrame(onPos);
             img.addEventListener('load', onLoad, { once: true });
@@ -744,7 +813,7 @@
         box.addEventListener('mouseenter', () => { row.__sahiBoxHover = true; }, { passive: true });
         box.addEventListener('mouseleave', () => {
           row.__sahiBoxHover = false;
-          setTimeout(maybeClose, 150);
+          setTimeout(() => tryMaybeClose(row), 150);
         }, { passive: true });
 
         // Load saved note and save on edit (debounced)
@@ -752,46 +821,23 @@
         ta.value = loadNote(adId);
         ta.addEventListener('input', () => {
           scheduleSave(adId, ta.value);
-          // Update star immediately as user types
           if ((ta.value || '').trim()) ensureStar(row);
           else removeStar(row);
           autoResizeTextarea(row, ta);
           onPos();
         });
-        // Isolate Enter key from page handlers
         installEnterIsolation(ta);
-        // Initial autoresize
         autoResizeTextarea(row, ta);
 
         // Ensure toggle arrow if unlocked
         updateOpenRowPrivatePanel(row);
-      });
-
-      row.addEventListener('mouseleave', () => {
-        const adId = getAdId(row) || 'unknown';
-        row.__sahiRowHover = false;
-        setTimeout(maybeClose, 150);
-      });
+        if (preferPrivate && isPageUnlocked()) {
+          ensureToggleArrow(row);
+          addPrivatePanelToBox(row, adId);
+          setPrivatePanelExpanded(row, true);
+        }
+      } catch {}
     }
-
-    // Minimal helper to extract an ad/row id
-    function getAdId(row) {
-      const fromData = row.getAttribute?.('data-id') || row.dataset?.id;
-      if (fromData) return fromData;
-      const idAttr = row.getAttribute?.('id');
-      if (idAttr) {
-        const m = idAttr.match(/\d+/);
-        if (m) return m[0];
-      }
-      const a = row.querySelector?.('a[href*="/ilan/"], a[href*="/detay/"], a[href*="ilan/"]');
-      if (a?.href) {
-        const m = a.href.match(/\/(\d+)(?:\?|$|\/)/);
-        if (m) return m[1];
-      }
-      return null;
-    }
-
-  // ---- Helpers for private panel in the open overlay ----
     function addPrivatePanelToBox(row, adId) {
       try {
         const wrap = row.__sahiNoteBox;
