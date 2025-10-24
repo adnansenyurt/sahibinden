@@ -74,9 +74,14 @@
 
     const SAVE_DEBOUNCE_MS = 300;
     const saveTimers = new Map();
+    const savePrivTimers = new Map();
     const noteKey = (id) => `sahi:note:${id}`;
+    const privNoteKey = (id) => `sahi:privnote:${id}`;
     function loadNote(adId) {
       try { return localStorage.getItem(noteKey(adId)) || ''; } catch { return ''; }
+    }
+    function loadPrivNote(adId) {
+      try { return localStorage.getItem(privNoteKey(adId)) || ''; } catch { return ''; }
     }
     function scheduleSave(adId, text) {
       clearTimeout(saveTimers.get(adId));
@@ -85,6 +90,14 @@
         saveTimers.delete(adId);
       }, SAVE_DEBOUNCE_MS);
       saveTimers.set(adId, t);
+    }
+    function schedulePrivSave(adId, text) {
+      clearTimeout(savePrivTimers.get(adId));
+      const t = setTimeout(() => {
+        try { localStorage.setItem(privNoteKey(adId), text || ''); } catch {}
+        savePrivTimers.delete(adId);
+      }, SAVE_DEBOUNCE_MS);
+      savePrivTimers.set(adId, t);
     }
 
     // Helper: compute and apply box position aligned to the image; clamp in viewport
@@ -95,12 +108,16 @@
       const refRect = img?.getBoundingClientRect ? img.getBoundingClientRect() : cellRect;
 
       const BOX_WIDTH = 220;
+      const GAP = 8;
       const height = Math.max(24, refRect.height);
+      // If this is a wrapper with multiple panels, width scales accordingly
+      const panelCount = box.querySelectorAll?.('.sahi-note-panel').length || 1;
+      const totalWidth = panelCount * BOX_WIDTH + (panelCount - 1) * GAP;
 
       // Prefer right of the image; if not enough space, place to the left of the cell
       let left = refRect.right + 8;
-      if (left + BOX_WIDTH > window.innerWidth - 4) {
-        left = Math.max(4, cellRect.left - BOX_WIDTH - 8);
+      if (left + totalWidth > window.innerWidth - 4) {
+        left = Math.max(4, cellRect.left - totalWidth - 8);
       }
 
       const top = Math.max(4, Math.min(window.innerHeight - height - 4, refRect.top));
@@ -108,7 +125,7 @@
       box.style.top = `${top}px`;
       box.style.left = `${left}px`;
       box.style.height = `${height}px`;
-      box.style.width = `${BOX_WIDTH}px`;
+      box.style.width = `${totalWidth}px`;
     }
 
     // Helper to force-close a row's note box and clear styles
@@ -128,7 +145,7 @@
       row.style.outlineOffset = '';
     }
 
-    // Small star overlay helpers
+    // Small star overlay helpers (normal + private)
     function ensureStar(row) {
       try {
         const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
@@ -146,7 +163,7 @@
         Object.assign(star.style, {
           position: 'absolute',
           top: '4px',
-          right: '4px',
+          right: '24px',
           fontSize: '16px',
           lineHeight: '16px',
           color: '#f5c518', // gold-ish
@@ -185,9 +202,66 @@
       else removeStar(row);
     }
 
+    function ensurePrivStar(row) {
+      try {
+        if (!isPageUnlocked()) { removePrivStar(row); return; }
+        const firstCell = row.cells?.[0] || row.querySelector('td:first-child') || row;
+        if (!firstCell) return;
+        if (getComputedStyle(firstCell).position === 'static') {
+          firstCell.style.position = 'relative';
+        }
+        if (row.__sahiPrivStarEl?.isConnected) return;
+        const star = document.createElement('div');
+        star.className = 'sahi-priv-star';
+        star.textContent = '★';
+        Object.assign(star.style, {
+          position: 'absolute',
+          top: '4px',
+          right: '4px',
+          fontSize: '16px',
+          lineHeight: '16px',
+          color: '#e74c3c', // red
+          textShadow: '0 1px 2px rgba(0,0,0,0.35)',
+          pointerEvents: 'none',
+          userSelect: 'none'
+        });
+        firstCell.appendChild(star);
+        row.__sahiPrivStarEl = star;
+      } catch (_) {}
+    }
+
+    function removePrivStar(row) {
+      try {
+        if (row.__sahiPrivStarEl?.isConnected) row.__sahiPrivStarEl.remove();
+      } catch (_) {}
+      row.__sahiPrivStarEl = null;
+    }
+
+    function refreshRowPrivStar(row) {
+      const adId = getAdId(row);
+      if (!adId) {
+        if (!row.__sahiPrivStarRetry) {
+          row.__sahiPrivStarRetry = true;
+          setTimeout(() => {
+            row.__sahiPrivStarRetry = false;
+            refreshRowPrivStar(row);
+          }, 300);
+        }
+        removePrivStar(row);
+        return;
+      }
+      if (!isPageUnlocked()) { removePrivStar(row); return; }
+      const note = loadPrivNote(adId);
+      if ((note || '').trim()) ensurePrivStar(row);
+      else removePrivStar(row);
+    }
+
     // New: refresh stars for all current rows
     function refreshAllStars() {
-      document.querySelectorAll(ROW_SEL).forEach(refreshRowStar);
+      document.querySelectorAll(ROW_SEL).forEach(row => {
+        refreshRowStar(row);
+        refreshRowPrivStar(row);
+      });
     }
 
     // ---- Token helpers (chrome.storage.local with localStorage fallback) ----
@@ -225,15 +299,21 @@
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i);
-          if (!k || !k.startsWith('sahi:note:')) continue;
-          const adId = k.slice('sahi:note:'.length);
-          const note = localStorage.getItem(k) || '';
-          if ((note || '').trim()) items.push({ adId, note });
+          if (!k) continue;
+          if (k.startsWith('sahi:note:')) {
+            const adId = k.slice('sahi:note:'.length);
+            const note = localStorage.getItem(k) || '';
+            if ((note || '').trim()) items.push({ adId, note, kind: 'normal' });
+          } else if (k.startsWith('sahi:privnote:')) {
+            const adId = k.slice('sahi:privnote:'.length);
+            const note = localStorage.getItem(k) || '';
+            if ((note || '').trim()) items.push({ adId, note, kind: 'private' });
+          }
         }
       } catch (_) {}
       return items;
     }
-    async function postNote(adId, note, token) {
+    async function postNote(adId, note, token, kind = 'normal') {
       return fetch(`${SERVER_BASE}/api/notes/${encodeURIComponent(adId)}`, {
         method: 'POST',
         headers: {
@@ -241,7 +321,7 @@
           'Authorization': `Bearer ${token || ''}`
         },
         mode: 'cors',
-        body: JSON.stringify({ note })
+        body: JSON.stringify({ note, kind })
       });
     }
     async function doSyncNotes() {
@@ -252,11 +332,11 @@
 
       for (const it of items) {
         try {
-          let res = await postNote(it.adId, it.note, token);
+          let res = await postNote(it.adId, it.note, token, it.kind);
           if (res.status === 401) {
             token = await ensureToken(true);
             if (!token) return { ok: false, error: 'no_token' };
-            res = await postNote(it.adId, it.note, token);
+            res = await postNote(it.adId, it.note, token, it.kind);
           }
           if (!res.ok) return { ok: false, error: 'http' };
         } catch {
@@ -292,12 +372,12 @@
       let okAll = true;
       for (const it of items) {
         try {
-          let res = await postNote(it.adId, it.note, token);
+          let res = await postNote(it.adId, it.note, token, it.kind);
           if (res.status === 401) {
             // prompt for token once and retry this note
             token = await ensureToken(true);
             if (!token) { okAll = false; break; }
-            res = await postNote(it.adId, it.note, token);
+            res = await postNote(it.adId, it.note, token, it.kind);
           }
           if (!res.ok) { okAll = false; break; }
         } catch {
@@ -398,6 +478,14 @@
       btn.setAttribute('aria-pressed', String(unlocked));
       btn.setAttribute('aria-label', unlocked ? 'Page unlocked, click to lock' : 'Page locked, click to unlock');
       btn.title = unlocked ? 'Click to lock this page' : 'Click to unlock this page';
+      // Update stars/boxes visibility tied to privacy state
+      try { refreshAllStars(); } catch {}
+      // If an overlay is open, add/remove private panel accordingly
+      try {
+        if (OPEN_ROW && OPEN_ROW.__sahiNoteBox?.isConnected) {
+          updateOpenRowPrivatePanel(OPEN_ROW);
+        }
+      } catch {}
     }
 
     function flashLockStatus(text) {
@@ -520,12 +608,16 @@
           return;
         }
 
-        // Create a floating editable note box to the right of the image cell showing the row id
+        // Create a floating wrapper containing the normal and (if unlocked) private note boxes
         const box = document.createElement('div');
-        box.className = 'sahi-note-box';
+        box.className = 'sahi-note-wrap';
         box.innerHTML = `
-          <div style="font-weight:600;margin-bottom:6px">ID: ${adId}</div>
-          <textarea placeholder="Enter note..." style="width:100%;height:calc(100% - 24px);border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;"></textarea>
+          <div class="sahi-note-header" style="font-weight:600;margin-bottom:6px">ID: ${adId}</div>
+          <div class="sahi-note-panels" style="display:flex;gap:8px;height:calc(100% - 24px);">
+            <div class="sahi-note-panel" data-type="normal" style="flex:0 0 220px;height:100%;display:flex;">
+              <textarea class="sahi-note-ta" placeholder="Enter note..." style="flex:1;width:100%;height:100%;border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;background:#fff;color:#000;"></textarea>
+            </div>
+          </div>
         `;
         Object.assign(box.style, {
           position: 'fixed',
@@ -583,7 +675,7 @@
         }, { passive: true });
 
         // Load saved note and save on edit (debounced)
-        const ta = box.querySelector('textarea');
+        const ta = box.querySelector('textarea.sahi-note-ta');
         ta.value = loadNote(adId);
         ta.addEventListener('input', () => {
           scheduleSave(adId, ta.value);
@@ -591,6 +683,12 @@
           if ((ta.value || '').trim()) ensureStar(row);
           else removeStar(row);
         });
+
+        // Add private panel if unlocked
+        if (isPageUnlocked()) {
+          addPrivatePanelToBox(row, adId);
+          onPos(); // reflow for two panels
+        }
       });
 
       row.addEventListener('mouseleave', () => {
@@ -615,6 +713,55 @@
         if (m) return m[1];
       }
       return null;
+    }
+
+    // ---- Helpers for private panel in the open overlay ----
+    function addPrivatePanelToBox(row, adId) {
+      try {
+        const wrap = row.__sahiNoteBox;
+        if (!wrap?.isConnected) return;
+        const panels = wrap.querySelector('.sahi-note-panels');
+        if (!panels) return;
+        if (panels.querySelector('.sahi-note-panel[data-type="private"]')) return; // already added
+        const panel = document.createElement('div');
+        panel.className = 'sahi-note-panel';
+        panel.setAttribute('data-type', 'private');
+        panel.style.flex = '0 0 220px';
+        panel.style.height = '100%';
+        panel.style.display = 'flex';
+        panel.innerHTML = `
+          <textarea class="sahi-priv-ta" placeholder="Enter private note..." style="flex:1;width:100%;height:100%;border:0;outline:0;resize:none;box-sizing:border-box;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial;background:#ffecec;color:#000;"></textarea>
+        `;
+        panels.appendChild(panel);
+        const taPriv = panel.querySelector('textarea.sahi-priv-ta');
+        taPriv.value = loadPrivNote(adId);
+        taPriv.addEventListener('input', () => {
+          schedulePrivSave(adId, taPriv.value);
+          if ((taPriv.value || '').trim()) ensurePrivStar(row);
+          else removePrivStar(row);
+        });
+      } catch {}
+    }
+
+    function removePrivatePanelFromBox(row) {
+      try {
+        const wrap = row.__sahiNoteBox;
+        if (!wrap?.isConnected) return;
+        const panel = wrap.querySelector('.sahi-note-panel[data-type="private"]');
+        if (panel) panel.remove();
+      } catch {}
+    }
+
+    function updateOpenRowPrivatePanel(row) {
+      if (!row?.__sahiNoteBox?.isConnected) return;
+      const adId = getAdId(row) || 'unknown';
+      if (isPageUnlocked()) {
+        addPrivatePanelToBox(row, adId);
+      } else {
+        removePrivatePanelFromBox(row);
+      }
+      // Reposition after structure change
+      try { positionNoteBox(row, row.__sahiNoteBox); } catch {}
     }
 
     // ---- Listen for popup command ----

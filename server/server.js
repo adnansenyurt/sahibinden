@@ -84,10 +84,11 @@ const authMiddleware = (req, res, next) => {
 app.post('/api/notes/:adId', authMiddleware, (req, res) => {
   const pathAdId = req.params.adId;
   const payload = req.body || {};
-  let { rowId, note } = payload;
+  let { rowId, note, kind } = payload;
 
   // Infer rowId from path if not provided in body
   if (rowId == null) rowId = pathAdId;
+  if (!kind) kind = 'normal';
 
   if (!rowId) {
     return res.status(400).json({ error: 'rowId is required (in body or path)' });
@@ -99,6 +100,9 @@ app.post('/api/notes/:adId', authMiddleware, (req, res) => {
   if (typeof note !== 'string' || !note.trim()) {
     return res.status(400).json({ error: 'note is required and must be a non-empty string' });
   }
+  if (!['normal', 'private'].includes(kind)) {
+    return res.status(400).json({ error: 'kind must be one of: normal, private' });
+  }
 
   // Ensure rowId is present; drop any accidental success flag
   const toStore = { rowId, ...payload };
@@ -109,7 +113,9 @@ app.post('/api/notes/:adId', authMiddleware, (req, res) => {
     toStore.updatedAt = new Date().toISOString();
   }
 
-  notes.set(rowId, toStore);
+  // Store by composite key so normal/private are separate entries
+  const key = `${rowId}:${kind}`;
+  notes.set(key, toStore);
 
   return res.json({ success: true, ...toStore });
 });
