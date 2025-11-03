@@ -1,27 +1,23 @@
 {
   "manifest_version": 3,
-  "name": "Sahi Notes",
-  "version": "0.1.0",
-  "description": "Hover notes on sahibinden.com with local save and sync.",
+  "name": "Note Taking",
+  "version": "0.2.0",
+  "description": "Note Taking",
   "action": {
-    "default_title": "Sahi Notes",
+    "default_title": "Note Taking",
     "default_popup": "popup.html"
   },
   "permissions": ["tabs", "storage"],
   "host_permissions": [
     "http://localhost:3000/*",
-    "https://sahibinden.com/*",
-    "http://sahibinden.com/*",
-    "https://*.sahibinden.com/*",
-    "http://*.sahibinden.com/*"
+    "https://www.sahibinden.com/*",
+    "file://*/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://sahibinden.com/*",
-        "http://sahibinden.com/*",
-        "https://*.sahibinden.com/*",
-        "http://*.sahibinden.com/*"
+        "file://*/*",
+        "https://www.sahibinden.com/*"
       ],
       "js": ["contentScript.js"],
       "run_at": "document_idle"

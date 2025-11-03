@@ -81,6 +81,57 @@ const authMiddleware = (req, res, next) => {
 };
 
 // Note endpoints
+
+// Bulk upsert endpoint: accepts { items: [{ id, note, privNote, updatedAt? }, ...] }
+app.post('/api/notes/bulk', authMiddleware, (req, res) => {
+  const body = req.body || {};
+  let { items } = body;
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: 'items must be an array' });
+  }
+
+  const results = [];
+  let count = 0;
+  const nowIso = new Date().toISOString();
+
+  for (const raw of items) {
+    if (!raw || typeof raw !== 'object') continue;
+    const id = raw.id != null ? String(raw.id) : '';
+    const note = typeof raw.note === 'string' ? raw.note.trim() : '';
+    const privNote = typeof raw.privNote === 'string' ? raw.privNote.trim() : '';
+
+    if (!id) continue;
+
+    // Public note
+    if (note) {
+      const pubObj = {
+        rowId: id,
+        note,
+        kind: 'normal',
+        updatedAt: raw.updatedAt || nowIso,
+      };
+      notes.set(`${id}:normal`, pubObj);
+      results.push({ success: true, ...pubObj });
+      count++;
+    }
+
+    // Private note
+    if (privNote) {
+      const privObj = {
+        rowId: id,
+        note: privNote,
+        kind: 'private',
+        updatedAt: raw.updatedAt || nowIso,
+      };
+      notes.set(`${id}:private`, privObj);
+      results.push({ success: true, ...privObj });
+      count++;
+    }
+  }
+
+  return res.json({ success: true, count, items: results });
+});
+
 app.post('/api/notes/:adId', authMiddleware, (req, res) => {
   const pathAdId = req.params.adId;
   const payload = req.body || {};
