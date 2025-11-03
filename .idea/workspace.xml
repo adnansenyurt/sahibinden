@@ -4,29 +4,48 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/sahibinden.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/manifest.json" afterDir="false" />
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="merging with the note taking extension-2">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chrome-ext/notes_content.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/notes_content.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext/popup.html" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/contentScript.js" beforeDir="false" afterPath="$PROJECT_DIR$/extension/contentScript.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/extension/manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/content.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/content.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/contentScript.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/icons/icon128.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/icons/icon16.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/icons/icon32.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/icons/icon48.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/injected.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/manifest.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/popup.html" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/popup.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/styles.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/extension/styles.scss" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  <component name="Git.Merge.Settings">
+    <option name="BRANCH" value="features" />
   </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/chrome-ext" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "adnansenyurt"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/adnansenyurt/sahibinden.git",
+    "accountId": "5c59bd11-cb0d-40fd-b0f0-34b377807ea8"
+  }
+}]]></component>
   <component name="ProjectColorInfo"><![CDATA[{
   "associatedIndex": 2
 }]]></component>
@@ -45,7 +64,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "features",
+    "git-widget-placeholder": "main",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/adnansenyurt/Projects/jh/emlak/sahibinden",
@@ -74,12 +93,34 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1762173568652</updated>
-      <workItem from="1762173569933" duration="7005000" />
+      <workItem from="1762173569933" duration="15412000" />
     </task>
+    <task id="LOCAL-00001" summary="merging with the note taking extension">
+      <option name="closed" value="true" />
+      <created>1762191766788</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1762191766788</updated>
+    </task>
+    <task id="LOCAL-00002" summary="merging with the note taking extension-2">
+      <option name="closed" value="true" />
+      <created>1762191985170</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1762191985170</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="merging with the note taking extension" />
+    <MESSAGE value="merging with the note taking extension-2" />
+    <option name="LAST_COMMIT_MESSAGE" value="merging with the note taking extension-2" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
