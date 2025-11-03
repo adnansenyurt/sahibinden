@@ -1,7 +1,8 @@
 (() => {
   try {
     const host = location.hostname;
-    const isAllowedHost = host === 'sahibinden.com' || host.endsWith('.sahibinden.com');
+    const isFile = location.protocol === 'file:';
+    const isAllowedHost = isFile || host === 'sahibinden.com' || host.endsWith('.sahibinden.com');
     if (!isAllowedHost) {
       return;
     }
@@ -234,8 +235,9 @@
           top: '4px',
           left: '4px',
           display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '6px',
           zIndex: '2',
           pointerEvents: 'none' // stars re-enable pointer events
         });
@@ -281,6 +283,56 @@
       } catch (_) {}
     }
 
+    // Edit icon shown only when row is hovered and there is no note
+    function ensureEditIcon(row) {
+      try {
+        const wrap = ensureStarContainer(row);
+        if (!wrap) return;
+        if (row.__sahiEditEl?.isConnected) return;
+
+        const edit = document.createElement('div');
+        edit.className = 'sahi-edit-icon';
+        Object.assign(edit.style, {
+          position: 'relative',
+          width: '16px',
+          height: '16px',
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: '16px 16px',
+          pointerEvents: 'auto',
+          userSelect: 'none',
+          cursor: 'pointer',
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))'
+        });
+        // Simple inline SVG: paper with a hand writing (pen)
+        const svg = encodeURIComponent(`<?xml version="1.0" encoding="UTF-8"?>
+          <svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'>
+            <rect x='1' y='1' width='10' height='14' rx='1.5' ry='1.5' fill='#ffffff' stroke='#888' stroke-width='1'/>
+            <line x1='3' y1='4' x2='10' y2='4' stroke='#bbb' stroke-width='1'/>
+            <line x1='3' y1='6' x2='9' y2='6' stroke='#bbb' stroke-width='1'/>
+            <path d='M9.5 12.5 L14.5 7.5 L15.5 8.5 L10.5 13.5 L9 14 L9.5 12.5 Z' fill='#f39c12' stroke='#b9770e' stroke-width='0.5'/>
+            <path d='M14.2 7.8 L13 6.6' stroke='#2c3e50' stroke-width='1'/>
+          </svg>`);
+        edit.style.backgroundImage = `url("data:image/svg+xml,${svg}")`;
+
+        wrap.appendChild(edit);
+        row.__sahiEditEl = edit;
+
+        edit.addEventListener('mouseenter', () => {
+          row.__sahiStarHover = true; // reuse same hover guard
+          openNoteBox(row, false);
+        });
+        edit.addEventListener('mouseleave', () => {
+          row.__sahiStarHover = false;
+          setTimeout(() => tryMaybeClose(row), 150);
+        });
+      } catch (_) {}
+    }
+
+    function removeEditIcon(row) {
+      try { if (row.__sahiEditEl?.isConnected) row.__sahiEditEl.remove(); } catch (_) {}
+      row.__sahiEditEl = null;
+    }
+
     function removeStar(row) {
       try {
         if (row.__sahiStarEl?.isConnected) row.__sahiStarEl.remove();
@@ -300,11 +352,32 @@
           }, 300);
         }
         removeStar(row);
+        removeEditIcon(row);
         return;
       }
       const note = loadNote(adId);
-      if ((note || '').trim()) ensureStar(row);
-      else removeStar(row);
+      const hasNote = (note || '').trim().length > 0;
+      const privNote = loadPrivNote(adId);
+      const hasPrivNote = (privNote || '').trim().length > 0;
+      const hasAnyNote = hasNote || hasPrivNote;
+      // Behavior:
+      // - Yellow star when there is an existing PUBLIC note
+      // - Red star handled separately for PRIVATE notes (see refreshRowPrivStar)
+      // - Edit icon should be shown only when hovering a row with NO notes at all (neither public nor private)
+      if (hasNote) {
+        ensureStar(row);
+        removeEditIcon(row);
+      } else if (hasPrivNote) {
+        // Private note exists: hide edit icon and ensure yellow star is not shown here
+        removeEditIcon(row);
+        removeStar(row);
+      } else if (row.__sahiRowHover) {
+        ensureEditIcon(row);
+        removeStar(row);
+      } else {
+        removeStar(row);
+        removeEditIcon(row);
+      }
     }
 
     function ensurePrivStar(row) {
@@ -709,7 +782,26 @@
       // Show star immediately based on saved note
       refreshRowStar(row);
 
-      // NOTE: No row-level hover to open box; stars control it now
+      // Row-level hover used to show an edit icon when there is no note
+      row.addEventListener('mouseenter', () => {
+        row.__sahiRowHover = true;
+        refreshRowStar(row);
+      }, { passive: true });
+
+      row.addEventListener('mouseleave', () => {
+        row.__sahiRowHover = false;
+        // If there is still no note and neither icon nor box is hovered, remove temporary icon(s)
+        setTimeout(() => {
+          const adId = getAdId(row);
+          const hasNote = adId ? (loadNote(adId) || '').trim().length > 0 : false;
+          const hasPrivNote = adId ? (loadPrivNote(adId) || '').trim().length > 0 : false;
+          const hasAnyNote = hasNote || hasPrivNote;
+          if (!hasAnyNote && !row.__sahiStarHover && !row.__sahiBoxHover) {
+            removeStar(row);
+            removeEditIcon(row);
+          }
+        }, 150);
+      }, { passive: true });
     }
 
     // Minimal helper to extract an ad/row id
@@ -881,6 +973,8 @@
         if (!wrap?.isConnected) return;
         const panel = wrap.querySelector('.sahi-note-panel[data-type="private"]');
         if (panel) panel.remove();
+        row.__sahiPrivPanelEl = null;
+        row.__sahiPrivExpanded = false;
       } catch {}
     }
 
@@ -970,12 +1064,9 @@
           // keep collapsed; no action
         }
       } else {
-        // Hide toggle and private panel
+        // Hide toggle and completely remove the private panel when locked
         row.__sahiPrivExpanded = false;
-        if (row.__sahiPrivPanelEl) {
-          row.__sahiPrivPanelEl.style.width = '0px';
-          row.__sahiPrivPanelEl.style.opacity = '0';
-        }
+        removePrivatePanelFromBox(row);
         ensureToggleHidden(row);
       }
       try { positionNoteBox(row, row.__sahiNoteBox); } catch {}
