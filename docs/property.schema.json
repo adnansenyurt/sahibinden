@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jh/emlak/sahibinden/docs/property.schema.json",
+  "title": "Sahibinden Property Import",
+  "description": "JSON Schema for a single property object produced by the Chrome extension and posted to the Emlak service.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Listing ID scraped from page or inferred from URL. Used to relate notes."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical listing URL."
+    },
+    "title": { "type": "string", "description": "Listing title." },
+    "description": { "type": "string", "description": "Free-text description from detail page." },
+    "locationText": { "type": "string", "description": "Raw location line like 'İstanbul / Kadıköy / Rasimpaşa Mh.'." },
+    "city": { "type": "string", "description": "Parsed city." },
+    "district": { "type": "string", "description": "Parsed district." },
+    "neighborhood": { "type": "string", "description": "Parsed neighborhood or remaining parts." },
+    "mapUrl": { "type": "string", "format": "uri", "description": "Google Maps URL built from page coordinates when available." },
+    "parcelUrl": { "type": "string", "format": "uri", "description": "TKGM Parsel URL when coordinates are present." },
+    "latitude": {
+      "type": ["number", "null"],
+      "minimum": -90,
+      "maximum": 90,
+      "description": "Decimal latitude extracted from mapUrl (if present)."
+    },
+    "longitude": {
+      "type": ["number", "null"],
+      "minimum": -180,
+      "maximum": 180,
+      "description": "Decimal longitude extracted from mapUrl (if present)."
+    },
+    "priceText": { "type": "string", "description": "Raw price text as seen on page." },
+    "price": { "type": ["number", "null"], "description": "Numeric price parsed from priceText (best-effort)." },
+    "contactName": { "type": "string", "description": "Agent/owner name from page." },
+    "contactPhone": { "type": "string", "description": "Agent/office phone (unformatted)." },
+    "listingFrom": { "type": "string", "description": "'Kimden' field (owner/real estate office etc.)." },
+    "frontageText": { "type": "string", "description": "'Cephe' value(s) as text." },
+    "opennessText": { "type": "string", "description": "Çevre openness summary lines." },
+    "frontageOpennessText": { "type": "string", "description": "Openness limited to selected frontage directions." },
+    "nearestTransportText": { "type": "string", "description": "Lines describing nearest metro/bus etc." },
+    "summary": { "type": "string", "description": "AI-generated summary if enabled; otherwise empty string." },
+    "image": {
+      "type": ["object", "null"],
+      "description": "First/main image from the listing (when available).",
+      "additionalProperties": false,
+      "properties": {
+        "base64": {
+          "type": "string",
+          "description": "Data URL for embedding (image/*;base64,...).",
+          "pattern": "^data:image\\/[^;]+;base64,"
+        },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["base64", "width", "height"]
+    },
+    "notes": {
+      "type": "array",
+      "description": "Per-listing notes collected locally.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string", "enum": ["public", "private"] },
+          "text": { "type": "string" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["type", "text", "updatedAt"]
+      }
+    },
+    "original": {
+      "type": "object",
+      "description": "Raw scraped row as produced by scraper (Turkish keys), for traceability.",
+      "additionalProperties": true
+    },
+    "scrapedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Generation timestamp (ISO)."
+    }
+  },
+  "required": ["id", "url", "scrapedAt", "original"]
+}
