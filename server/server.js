@@ -1,52 +1,25 @@
 const express = require('express');
 const cors = require('cors');
+const pino = require('pino');
+const pinoHttp = require('pino-http');
 
 const app = express();
 const PORT = 3000;
 
+// Structured logger
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
 app.use(cors());
 app.use(express.json());
 
-// NEW: Request/Response logging middleware (GET/POST)
-const requestResponseLogger = (req, res, next) => {
-  if (!['GET', 'POST'].includes(req.method)) return next();
-
-  const { method, originalUrl } = req;
-  const redactedHeaders = { ...req.headers };
-  if (redactedHeaders.authorization) redactedHeaders.authorization = '[REDACTED]';
-
-  console.log(`[REQ] ${method} ${originalUrl}`, {
-    headers: redactedHeaders,
-    params: req.params,
-    query: req.query,
-    body: req.body,
-  });
-
-  const oldJson = res.json.bind(res);
-  const oldSend = res.send.bind(res);
-
-  const logResponse = (payload) => {
-    let out = payload;
-    try {
-      if (Buffer.isBuffer(payload)) out = payload.toString('utf8');
-    } catch (_) {}
-    console.log(`[RES] ${method} ${originalUrl} ${res.statusCode}`, out);
-  };
-
-  res.json = (body) => {
-    logResponse(body);
-    return oldJson(body);
-  };
-
-  res.send = (body) => {
-    logResponse(body);
-    return oldSend(body);
-  };
-
-  next();
-};
-
-app.use(requestResponseLogger);
+// Structured HTTP logger (redacts Authorization by default)
+app.use(pinoHttp({
+  logger,
+  redact: {
+    paths: ['req.headers.authorization'],
+    remove: true
+  }
+}));
 
 // Handle devtools request
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (req, res) => {
@@ -65,7 +38,7 @@ app.get('/api/health', (req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  logger.error({ err }, 'Unhandled error');
   res.status(500).json({ error: err.message });
 });
 
@@ -177,5 +150,5 @@ app.get('/api/notes', authMiddleware, (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    logger.info({ port: PORT }, `Server running on http://localhost:${PORT}`);
 });

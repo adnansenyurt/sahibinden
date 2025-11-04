@@ -176,7 +176,7 @@ curl -X POST http://localhost:3000/api/notes/125 \
 - CORS: enabled for all origins via `app.use(cors())`.
 - Auth: a minimal middleware checks for the presence of `Authorization: Bearer <token>`. JWT is not validated yet (placeholder for production).
 - Storage: in-memory `Map` keyed by `${rowId}:normal` and `${rowId}:private`. Data is lost when the process restarts.
-- Logging: lightweight request/response logger for GET/POST routes prints headers (with Authorization redacted), params, query, and body to the console.
+- Logging: Structured logging via Pino with log levels. Set LOG_LEVEL env var (e.g., debug, info, warn, error). HTTP requests are logged with pino-http and Authorization header is redacted.
 
 ---
 
