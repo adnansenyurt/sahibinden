@@ -4,23 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="merging with the note taking extension-2">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="note taking works in its final form">
+      <change beforePath="$PROJECT_DIR$/chrome-ext/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/background.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chrome-ext/docxGenerator.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/docxGenerator.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext/notes_content.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/notes_content.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/popup.html" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/content.css" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/content.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/contentScript.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/icons/icon128.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/icons/icon16.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/icons/icon32.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/icons/icon48.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/injected.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/manifest.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/popup.html" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/popup.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/styles.css" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/extension/styles.scss" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,7 +18,7 @@
     <option name="BRANCH" value="features" />
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/chrome-ext" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
   <component name="GitHubPullRequestSearchHistory"><![CDATA[{
@@ -93,7 +80,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1762173568652</updated>
-      <workItem from="1762173569933" duration="15412000" />
+      <workItem from="1762173569933" duration="22009000" />
     </task>
     <task id="LOCAL-00001" summary="merging with the note taking extension">
       <option name="closed" value="true" />
@@ -111,7 +98,23 @@
       <option name="project" value="LOCAL" />
       <updated>1762191985170</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="note taking works in its final form">
+      <option name="closed" value="true" />
+      <created>1762200434692</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1762200434692</updated>
+    </task>
+    <task id="LOCAL-00004" summary="note taking works in its final form">
+      <option name="closed" value="true" />
+      <created>1762200471877</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1762200471877</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -120,7 +123,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="merging with the note taking extension" />
     <MESSAGE value="merging with the note taking extension-2" />
-    <option name="LAST_COMMIT_MESSAGE" value="merging with the note taking extension-2" />
+    <MESSAGE value="note taking works in its final form" />
+    <option name="LAST_COMMIT_MESSAGE" value="note taking works in its final form" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
