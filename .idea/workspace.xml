@@ -4,14 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="prepare for json record saving">
-      <change beforePath="$PROJECT_DIR$/chrome-ext/popup.html" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/server/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/node_modules/.package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/node_modules/.package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/server/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/server/server.js" afterDir="false" />
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="server url removed from popup gui.">
+      <change beforePath="$PROJECT_DIR$/chrome-ext/notes_content.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/notes_content.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -84,7 +78,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1762173568652</updated>
-      <workItem from="1762173569933" duration="23819000" />
+      <workItem from="1762173569933" duration="25380000" />
     </task>
     <task id="LOCAL-00001" summary="merging with the note taking extension">
       <option name="closed" value="true" />
@@ -126,7 +120,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762238273983</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="server url removed from popup gui.">
+      <option name="closed" value="true" />
+      <created>1762240166949</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1762240166949</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -154,7 +156,8 @@
     <MESSAGE value="merging with the note taking extension-2" />
     <MESSAGE value="note taking works in its final form" />
     <MESSAGE value="prepare for json record saving" />
-    <option name="LAST_COMMIT_MESSAGE" value="prepare for json record saving" />
+    <MESSAGE value="server url removed from popup gui." />
+    <option name="LAST_COMMIT_MESSAGE" value="server url removed from popup gui." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
