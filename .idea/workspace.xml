@@ -4,11 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="last updated time stamp for notes">
-      <change beforePath="$PROJECT_DIR$/chrome-ext/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/popup.html" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.html" afterDir="false" />
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="posting json to emlak app&#10;#not tested">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chrome-ext" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/cr.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cr.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -81,7 +80,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1762173568652</updated>
-      <workItem from="1762173569933" duration="28886000" />
+      <workItem from="1762173569933" duration="30919000" />
     </task>
     <task id="LOCAL-00001" summary="merging with the note taking extension">
       <option name="closed" value="true" />
@@ -139,7 +138,23 @@
       <option name="project" value="LOCAL" />
       <updated>1762242342049</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="login to emlak app">
+      <option name="closed" value="true" />
+      <created>1762245789698</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1762245789698</updated>
+    </task>
+    <task id="LOCAL-00009" summary="posting json to emlak app&#10;#not tested">
+      <option name="closed" value="true" />
+      <created>1762246811239</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1762246811239</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -169,7 +184,9 @@
     <MESSAGE value="prepare for json record saving" />
     <MESSAGE value="server url removed from popup gui." />
     <MESSAGE value="last updated time stamp for notes" />
-    <option name="LAST_COMMIT_MESSAGE" value="last updated time stamp for notes" />
+    <MESSAGE value="login to emlak app" />
+    <MESSAGE value="posting json to emlak app&#10;#not tested" />
+    <option name="LAST_COMMIT_MESSAGE" value="posting json to emlak app&#10;#not tested" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
