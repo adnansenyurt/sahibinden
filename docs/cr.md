@@ -46,7 +46,8 @@ Property object fields (English):
 - scrapedAt: ISO string — generation timestamp.
 
 Posting rule:
-- Bulk (listing page): background generates an array of property objects and stores it under chrome.storage.session key 'sahi:lastJsonPayload' (for future download/inspection). No POST is performed.
+- Live listing page (https): background queues detail pages; each item is posted to Emlak after details are scraped (human-like delays apply). JSON array is also stored under chrome.storage.session key 'sahi:lastJsonPayload'.
+- Saved listing page (file://): only row-level fields are scraped; background does not fetch details but still posts each item to Emlak with these minimal fields (if logged in). JSON array is stored under 'sahi:lastJsonPayload'.
 - Single (detail page): when the result contains exactly one row, background maps to a single property object and POSTs it to {BASE}/api/custom/properties/import with Authorization: Bearer <jwt>. Body payload per API example is the entire JSON object serialized to a JSON string (i.e., quoted string in JSON envelope).
 
 Configuration:

@@ -4,9 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="some fixes for avoiding blockage">
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="saved html scrapping">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chrome-ext/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/background.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext/content.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/content.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chrome-ext/docxGenerator.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/docxGenerator.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/cr.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cr.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -176,7 +180,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762258107005</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="saved html scrapping">
+      <option name="closed" value="true" />
+      <created>1762344618656</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1762344618656</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -210,7 +222,8 @@
     <MESSAGE value="posting json to emlak app&#10;#not tested" />
     <MESSAGE value="emlak login URL fixed&#10;@not tested" />
     <MESSAGE value="some fixes for avoiding blockage" />
-    <option name="LAST_COMMIT_MESSAGE" value="some fixes for avoiding blockage" />
+    <MESSAGE value="saved html scrapping" />
+    <option name="LAST_COMMIT_MESSAGE" value="saved html scrapping" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
