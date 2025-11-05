@@ -5,15 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="some fixes for avoiding blockage">
-      <change afterPath="$PROJECT_DIR$/docs/anti-detection.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/property.schema.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/test-detail-page.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/background.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-ext/content.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/content.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/popup.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/cr.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cr.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,7 +25,7 @@
         <entry key="$PROJECT_DIR$" value="main" />
       </map>
     </option>
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/chrome-ext" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
     <option name="SWAP_SIDES_IN_COMPARE_BRANCHES" value="true" />
   </component>
@@ -63,7 +59,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "html-scrape",
     "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/adnansenyurt/Projects/jh/emlak/sahibinden",
@@ -74,6 +70,7 @@
     "nodejs_package_manager_path": "npm",
     "settings.editor.selected.configurable": "ml.llm.LLMThirdPartyAiProvidersConfigurable",
     "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "/Users/adnansenyurt/Library/Application Support/JetBrains/IntelliJIdea2025.2/plugins/javascript-plugin/jsLanguageServicesImpl/external",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -92,7 +89,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1762173568652</updated>
-      <workItem from="1762173569933" duration="36572000" />
+      <workItem from="1762173569933" duration="42364000" />
     </task>
     <task id="LOCAL-00001" summary="merging with the note taking extension">
       <option name="closed" value="true" />
@@ -174,7 +171,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762247928411</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="some fixes for avoiding blockage">
+      <option name="closed" value="true" />
+      <created>1762258107005</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1762258107005</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

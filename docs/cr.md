@@ -1,9 +1,15 @@
 ## Pending features
 
-- Show date/time of the note when note edit box is displayed.
-- Login and receive the JWT token from Emlak app from popup.html. (Implemented basic login in popup to AUTH_URL)
-- Generate a JSON object/array for scraped data and post single-detail to server. (Implemented mapping and POST in background.js)
++ Show date/time of the note when note edit box is displayed.
++ Login and receive the JWT token from Emlak app from popup.html. (Implemented basic login in popup to AUTH_URL)
++ Generate a JSON object/array for scraped data and post single-detail to server. (Implemented mapping and POST in background.js)
 - Merge note data and scrapped data on server.
++ Add minimum scrapping for listing page (list page now only scrapes visible fields and returns immediately; detail pages are processed in background with human-like delays and per-item Emlak POST)
+- Adopt scrapper to scrap listing from a saved html
++ Emlak: extend table to import all fields.
++ Emlak: Build custom property detail view with image.
+- Emlak: set Managing agency and managing agent from imported data.
+- Emlak: add notes table and link to Property to import notes
 
 ### JSON schema (proposed for Emlak import)
 
