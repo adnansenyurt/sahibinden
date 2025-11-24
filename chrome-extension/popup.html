@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Sahibinden Lite</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 340px; padding: 10px; }
+    h1 { font-size: 16px; margin: 0 0 8px; text-align:center; }
+    button { padding: 8px 10px; font-size: 14px; cursor: pointer; border: none; border-radius: 4px; background: #0b79ff; color: #fff; }
+    .status { margin-top: 8px; font-size: 12px; color: #333; min-height: 16px; }
+    pre { margin-top: 10px; max-height: 280px; overflow: auto; background: #f7f7f7; padding: 8px; border-radius: 4px; }
+  </style>
+  </head>
+<body>
+  <h1>Sahibinden Lite</h1>
+  <button id="scrape">Bu Sayfayı Tara</button>
+  <div id="ilanNoRow" style="margin-top:8px; font-size:13px; color:#222; display:none;">
+    <strong>İlan No:</strong> <span id="ilanNoVal">-</span>
+  </div>
+  <div style="margin-top:10px;">
+    <label style="display:block; font-weight:600; margin-bottom:4px;">Emlak API</label>
+    <input id="emlakBaseUrl" type="url" placeholder="http://localhost:8080" style="width:100%; padding:6px; box-sizing:border-box;" />
+  </div>
+
+  <div id="authBox" style="margin-top:8px;">
+    <div id="loginView">
+      <input id="loginEmail" type="email" placeholder="E-posta" style="width:100%; padding:6px; box-sizing:border-box; margin-top:6px;" />
+      <input id="loginPassword" type="password" placeholder="Şifre" style="width:100%; padding:6px; box-sizing:border-box; margin-top:6px;" />
+      <button id="loginBtn" style="margin-top:6px; background:#28a745;">Giriş Yap</button>
+    </div>
+    <div id="loggedInView" style="display:none; margin-top:6px; display:flex; align-items:center; gap:8px;">
+      <div id="loggedInEmail" style="font-size:12px; color:#333; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;"></div>
+      <button id="logoutBtn" style="background:#888;">Çıkış</button>
+    </div>
+  </div>
+
+  <div id="notesSection" style="margin-top:10px; border-top:1px solid #eee; padding-top:8px; display:none;">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <label style="font-weight:600;">Notlar</label>
+      <button id="addNoteToggle" style="background:#6c757d; padding:4px 8px; font-size:12px;">Yeni Not</button>
+    </div>
+    <div id="notesList" style="margin-top:6px; max-height:150px; overflow:auto; font-size:12px; color:#222;"></div>
+    <div id="addNoteForm" style="display:none; margin-top:8px;">
+      <textarea id="noteText" placeholder="Not metni" style="width:100%; box-sizing:border-box; padding:6px; min-height:60px;"></textarea>
+      <div style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+        <label style="font-size:12px; color:#333;"><input type="checkbox" id="notePrivate" /> Özel (PRIVATE)</label>
+        <div style="flex:1 1 auto;"></div>
+        <button id="submitNoteBtn" style="background:#28a745;">Kaydet</button>
+      </div>
+      <div id="noteErr" style="margin-top:4px; font-size:12px; color:#b00020;"></div>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+  <pre id="out"></pre>
+  <script src="popup.js"></script>
+</body>
+</html>

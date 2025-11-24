@@ -1,0 +1,6 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- A blue rounded square background -->
+  <rect width="128" height="128" rx="28" ry="28" fill="#007bff"/>
+  <!-- The letter 'S' centered on the square -->
+  <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="96" font-weight="bold" fill="white">S</text>
+</svg>
