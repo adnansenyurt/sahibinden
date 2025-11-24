@@ -12,8 +12,9 @@ This document captures project-specific knowledge to help future development and
 - Content script: `notes_content.js`
 - Popup: `popup.html`
 - Extra module: `docxGenerator.js` (DOCX per-row generation)
+- Optional Excel template: `sahibinden_template.xlsx` (column placeholders)
 - Manifest permissions are already configured for:
-  - Host permissions: `https://*.sahibinden.com/*`, `https://*.shbdn.com/*`, Google Maps, Overpass, Gemini API, `http://localhost:3000/*`.
+  - Host permissions: `https://*.sahibinden.com/*`, `https://*.shbdn.com/*`, Google Maps, Overpass, Gemini API, `http://localhost:3000/*`, `http://localhost:8080/*`, and `file://*/*`.
   - Extension permissions: scripting, activeTab, downloads, notifications, storage, declarativeNetRequest, offscreen, tabs.
 
 Build/Load steps:
@@ -26,8 +27,11 @@ Build/Load steps:
 Runtime configuration (extension):
 - Notes sync host must be reachable at `http://localhost:3000/` (already allowed by manifest).
 - The popup UI stores an auth token in Chrome storage; server only checks presence (not validity yet). Use any non-empty token for local dev.
-- DOCX template: if packaged, `sahibinden_template.docx` is used; otherwise, a built‑in fallback layout is used per row.
+- DOCX template(s):
+  - Excel: if `sahibinden_template.xlsx` is packaged, column placeholders in row 2 are used to generate the sheet(s); otherwise, a built‑in fallback layout is used.
+  - Word: if `sahibinden_template.docx` is packaged, it will be used; otherwise, per‑row DOCX is generated via fallback.
 - Downloads: Excel and per-row DOCX files are saved into the browser’s Downloads folder.
+- Emlak API integration: popup allows configuring base URL (stored at `sahi:emlakUrl` in chrome.storage.local, default `http://localhost:8080`). JWT for API calls is stored under `sahi:jwt`; POSTs go to `/api/custom/properties/import` with fallback to `/api/properties/import`.
 
 ### Local Notes Server (Express)
 - Location: `server/`
@@ -123,3 +127,21 @@ These concrete calls were executed successfully during guideline preparation.
 - Real JWT validation and persistence (DB).
 - Configurable server URL in extension options.
 - Structured logging (pino) with log levels.
+
+
+---
+
+## 4) DOCX generation – current configuration (Nov 2025)
+- DOCX options are selectable from the popup again. You can choose between fallback and template flows and toggle links/images.
+- Defaults:
+  - Şablonu atla (Force fallback): ON (uses built‑in fallback layout)
+  - Şablon düzenini güvenle uygula: ON (when template is used, applies styles safely)
+  - Resimleri devre dışı bırak: OFF (images enabled; WEBP skipped if unsupported by Word)
+  - Bağlantıları devre dışı bırak: OFF (hyperlinks enabled)
+- XML sanitization: enabled for all inserted text to remove invalid XML 1.0 characters.
+
+Verification steps:
+1) Reload the extension (Load unpacked → Reload) and open a local property detail page.
+2) Open the popup → DOCX Seçenekleri (Tanılama): adjust toggles as desired.
+3) Generate per‑row DOCX from the popup.
+4) Open the saved .docx in Word: it should open without repair dialogs; links are clickable; images render when provided in a supported format.
