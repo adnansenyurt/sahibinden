@@ -59,6 +59,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const total = message.total || 0;
         const imported = message.imported || 0;
         setStatus(`Görsel aktarımı tamamlandı: ${imported}/${total}`);
+      } else if (message.action === 'syncStatus') {
+        // Initialization sync after page load/login
+        try {
+          if (message.ilanNo && ilanNoVal) ilanNoVal.textContent = message.ilanNo;
+          if (ilanNoRow) ilanNoRow.style.display = message.ilanNo ? 'block' : 'none';
+          if (Array.isArray(message.notes)) {
+            renderNotes(message.notes);
+          }
+          setStatus(message.ok ? 'Senkronizasyon tamamlandı.' : 'Senkronizasyon başarısız.');
+          setTimeout(() => setStatus(''), 1200);
+        } catch (_) {}
+      } else if (message.action === 'apiDebug') {
+        try {
+          appendApiLog(message);
+        } catch(_) {}
       }
     } catch (_) {}
   });
@@ -155,6 +170,36 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#039;');
   }
 
+  // --- API debug log rendering ---
+  const apiLogs = [];
+  function appendApiLog(msg) {
+    const now = new Date();
+    const ts = now.toLocaleTimeString();
+    const entry = {
+      t: ts,
+      m: msg.method || '',
+      u: msg.url || '',
+      s: typeof msg.status === 'undefined' ? '' : msg.status,
+      e: msg.error || '',
+      b: msg.body || msg.note || ''
+    };
+    apiLogs.push(entry);
+    // Keep only last 50 entries
+    if (apiLogs.length > 50) apiLogs.splice(0, apiLogs.length - 50);
+    renderApiLogs();
+  }
+
+  function renderApiLogs() {
+    const pre = document.getElementById('out');
+    if (!pre) return;
+    const lines = apiLogs.map(x => {
+      const head = `[${x.t}] ${x.m} ${x.u} -> ${x.s || ''}`;
+      const body = x.e ? `ERROR: ${x.e}` : (x.b || '');
+      return head + (body ? `\n${body}` : '');
+    });
+    pre.textContent = lines.join('\n\n');
+  }
+
   addNoteToggle?.addEventListener('click', () => {
     if (!addNoteForm) return;
     const vis = addNoteForm.style.display !== 'none';
@@ -219,6 +264,14 @@ document.addEventListener('DOMContentLoaded', () => {
       showLoggedIn(email);
       setStatus('Giriş başarılı.');
       setTimeout(() => setStatus(''), 1200);
+      // Trigger an initialization sync for the current tab now that we have a token
+      try {
+        const tab = await getActiveTab();
+        const url = tab?.url || '';
+        if (url && /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url)) {
+          await chrome.runtime.sendMessage({ type: 'initSyncForCurrent', tabId: tab.id, url });
+        }
+      } catch (_) {}
     } catch (e) {
       setStatus('Giriş başarısız: ' + (e?.message || e));
     } finally {

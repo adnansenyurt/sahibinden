@@ -120,6 +120,31 @@ async function scrapeDetailInPage(tabId, url) {
   }
 }
 
+// --- Debug helper to emit API responses to popup for localhost:8080 (or configured base) ---
+async function emitApiDebug({ method, url, resp, error, note, bodyLimit = 1000 }) {
+  try {
+    const { baseUrl } = await getAuthAndBase().catch(() => ({ baseUrl: '' }));
+    const base = (baseUrl || 'http://localhost:8080').replace(/\/$/, '');
+    if (!url || !String(url).startsWith(base)) return; // only log calls to our API base
+    const payload = { action: 'apiDebug', source: 'background', method: method || 'GET', url: String(url), note: note || '' };
+    if (resp) {
+      try {
+        const clone = resp.clone();
+        payload.status = resp.status;
+        const ct = clone.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          const j = await clone.json().catch(() => ({}));
+          payload.body = JSON.stringify(j).slice(0, bodyLimit);
+        } else {
+          payload.body = (await clone.text().catch(() => '')).slice(0, bodyLimit);
+        }
+      } catch (_) {}
+    }
+    if (error) payload.error = String(error);
+    try { chrome.runtime.sendMessage(payload); } catch (_) {}
+  } catch (_) {}
+}
+
 // Optional enrichment using external systems (Overpass + Gemini)
 async function enrichWithExternal(scraped) {
   try {
@@ -196,6 +221,10 @@ async function getAuthAndBase() {
 async function fetchSyncDataForSource(sourceId) {
   if (!sourceId) return { ok: false, images: [], notes: [] };
   const { jwt, baseUrl } = await getAuthAndBase();
+  // If there's no JWT, don't call the API at all to avoid 401 noise
+  if (!jwt) {
+    return { ok: true, images: [], notes: [] };
+  }
   try {
     await ensureCorsBypassForBase(baseUrl);
   } catch {}
@@ -203,42 +232,61 @@ async function fetchSyncDataForSource(sourceId) {
   const timeout = setTimeout(() => controller.abort(), 20000);
   const commonHeaders = {};
   if (jwt) commonHeaders['Authorization'] = `Bearer ${jwt}`;
-  const jsonHeaders = { 'Content-Type': 'application/json', ...commonHeaders };
+  // help some servers pick a JSON-ish response
+  commonHeaders['accept'] = commonHeaders['accept'] || '*/*';
 
-  // Helpers for GET (preferred) and POST (fallback)
+  // Helper for GET requests with sourceId query param
   async function callGet(path) {
     try {
       const url = baseUrl + path + (path.includes('?') ? '&' : '?') + 'sourceId=' + encodeURIComponent(sourceId);
       const resp = await fetch(url, { method: 'GET', headers: commonHeaders, signal: controller.signal });
-      if (!resp.ok) return null;
+      // Emit debug info to popup for every call (success or failure)
+      await emitApiDebug({ method: 'GET', url, resp });
+      if (!resp.ok) {
+        // For 401/403, still log but return empty to indicate no data
+        if (resp.status === 401 || resp.status === 403) {
+          return [];
+        }
+        try { console.error('[SAHI][sync] GET failed', { url, status: resp.status, statusText: resp.statusText }); } catch {}
+        return null;
+      }
       let json = null; try { json = await resp.json(); } catch { json = null; }
       return json;
-    } catch (_) { return null; }
-  }
-  async function callPost(path) {
-    try {
-      const resp = await fetch(baseUrl + path, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ sourceId }), signal: controller.signal });
-      if (!resp.ok) return null;
-      let json = null; try { json = await resp.json(); } catch { json = null; }
-      return json;
-    } catch (_) { return null; }
+    } catch (e) {
+      try { console.error('[SAHI][sync] GET error', { path, error: (e && e.message) || String(e) }); } catch {}
+      // Emit error info to popup
+      try {
+        const url = baseUrl + path + (path.includes('?') ? '&' : '?') + 'sourceId=' + encodeURIComponent(sourceId);
+        await emitApiDebug({ method: 'GET', url, error: (e && e.message) || String(e) });
+      } catch (_) {}
+      return null;
+    }
   }
 
-  // Prefer GET because server responded 405 for POST
-  let data = await callGet('/api/custom/property-import/get-sync-data');
-  if (!data) data = await callGet('/api/custom/property-import/get-sync-data');
+  // 1) Fetch images list via dedicated endpoint
+  let imagesResp = await callGet('/api/custom/property-import/sync-images');
+  // 2) Fetch notes list via dedicated endpoint
+  let notesResp = await callGet('/api/custom/property-import/sync-notes');
+
+
   clearTimeout(timeout);
-  // Extract array of image source file urls from various possible shapes
-  let arr = [];
-  if (Array.isArray(data)) arr = data;
-  else if (data && Array.isArray(data.imageSourceFiles)) arr = data.imageSourceFiles;
-  else if (data && Array.isArray(data.images)) arr = data.images;
-  else if (data && Array.isArray(data.imageUrls)) arr = data.imageUrls;
-  arr = (arr || []).map(normalizeImageUrl).filter(Boolean);
-  // Extract notes array when provided
+
+  // Normalize images from various shapes
+  let imageArr = [];
+  const im = imagesResp;
+  if (Array.isArray(im)) imageArr = im;
+  else if (im && Array.isArray(im.imageSourceFiles)) imageArr = im.imageSourceFiles;
+  else if (im && Array.isArray(im.images)) imageArr = im.images;
+  else if (im && Array.isArray(im.imageUrls)) imageArr = im.imageUrls;
+  imageArr = (imageArr || []).map(normalizeImageUrl).filter(Boolean);
+
+  // Normalize notes response
   let notes = [];
-  if (data && Array.isArray(data.notes)) notes = data.notes;
-  return { ok: true, images: Array.from(new Set(arr)), notes };
+  const nr = notesResp;
+  if (Array.isArray(nr)) notes = nr;
+  else if (nr && Array.isArray(nr.notes)) notes = nr.notes;
+
+  return { ok: true, images: Array.from(new Set(imageArr)), notes };
 }
 
 async function computeNewImagesFor(sourceId, scrapedUrls = []) {
@@ -248,6 +296,49 @@ async function computeNewImagesFor(sourceId, scrapedUrls = []) {
   const remoteSet = new Set(sync.images || []);
   const diff = normScraped.filter(u => !remoteSet.has(u));
   return Array.from(new Set(diff));
+}
+
+// Helper: perform initialization sync for a given tab/url when logged in
+async function doInitSyncForTab(tabId, url) {
+  try {
+    const isDetail = /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
+    if (!isDetail) return;
+    const res = await scrapeDetailInPage(tabId, url);
+    if (res && res.success && res.data) {
+      const enriched = await enrichWithExternal(res.data || {});
+      const dto = mapToPropertyDto(enriched || {});
+      const sourceId = dto?.id || '';
+      const ilanNo = enriched['İlan No'] || sourceId || '';
+      const scrapedImageUrls = Array.isArray(enriched.scrapedImageUrls) ? enriched.scrapedImageUrls : [];
+      // If logged in, fetch remote sync data (notes + images) ONCE and compute diffs locally.
+      const { jwt } = await getAuthAndBase();
+      if (jwt && sourceId) {
+        const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
+        // Compute new images by diffing scraped vs. remote, without triggering another network call
+        const remoteSet = new Set((sync?.images || []).map(normalizeImageUrl).filter(Boolean));
+        const normScraped = scrapedImageUrls.map(normalizeImageUrl).filter(Boolean);
+        const newImageUrls = Array.from(new Set(normScraped.filter(u => !remoteSet.has(u))));
+
+        // Cache last tab data including computed new images
+        lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+
+        // Notify popup with the same sync payload to avoid duplicate fetches
+        try {
+          chrome.runtime.sendMessage({
+            action: 'syncStatus',
+            ok: !!sync?.ok,
+            sourceId,
+            ilanNo,
+            notes: sync?.notes || [],
+            images: sync?.images || []
+          });
+        } catch (_) {}
+      } else {
+        // Not logged in or missing sourceId: cache scraped basics without newImageUrls
+        lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
+      }
+    }
+  } catch (_) {}
 }
 
 // Auto scrape and compute sync data when a sahibinden detail page finishes loading
@@ -262,18 +353,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         return;
       }
       (async () => {
-        const res = await scrapeDetailInPage(tabId, url);
-        if (res && res.success && res.data) {
-          // Enrich before caching and DTO mapping
-          const enriched = await enrichWithExternal(res.data || {});
-          const dto = mapToPropertyDto(enriched || {});
-          const sourceId = dto?.id || '';
-          const ilanNo = res.data['İlan No'] || sourceId || '';
-          const scrapedImageUrls = Array.isArray(enriched.scrapedImageUrls) ? enriched.scrapedImageUrls : [];
-          let newImageUrls = [];
-          try { newImageUrls = await computeNewImagesFor(sourceId, scrapedImageUrls); } catch (_) { newImageUrls = []; }
-          lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+        // Requirement: if no token, do nothing on initialization
+        const { jwt } = await getAuthAndBase();
+        if (!jwt) {
+          // Skip any scraping/sync until user logs in via popup
+          return;
         }
+        await doInitSyncForTab(tabId, url);
       })();
     }
   } catch (_) {}
@@ -282,6 +368,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // Message bridge from popup
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
+  if (msg && msg.type === 'initSyncForCurrent') {
+    try {
+      const { tabId, url } = msg;
+      const { jwt } = await getAuthAndBase();
+      if (!jwt) { sendResponse({ ok: false, error: 'no_jwt' }); return; }
+      await doInitSyncForTab(tabId, url);
+      sendResponse({ ok: true });
+    } catch (e) {
+      sendResponse({ ok: false, error: String(e?.message || e) });
+    }
+    return;
+  }
     if (msg && msg.type === 'scrapeCurrent') {
       const { url, tabId } = msg;
       // Only allow detail pages
@@ -382,7 +480,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         let normType = String(noteType || '').toUpperCase();
         normType = (normType === 'PRIVATE') ? 'PRIVATE' : 'PUBLIC';
         const bodyObj = { sourceId, text: String(text || ''), type: normType, lastUpdate: null };
-        const resp = await fetch(baseUrl.replace(/\/$/, '') + '/api/custom/property-import/add-note', {
+        const url = baseUrl.replace(/\/$/, '') + '/api/custom/property-import/add-note';
+        const resp = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -392,8 +491,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           signal: controller.signal
         }).catch((e) => { throw e; });
         clearTimeout(timeout);
+        // Emit debug log
+        await emitApiDebug({ method: 'POST', url, resp });
         if (!resp || !resp.ok) {
           const txt = resp ? (await resp.text().catch(() => '')) : 'no_response';
+          // Emit error detail too
+          await emitApiDebug({ method: 'POST', url, error: `HTTP ${resp ? resp.status : 'NA'} ${txt}` });
           sendResponse({ ok: false, error: `HTTP ${resp ? resp.status : 'NA'} ${txt}` });
           return;
         }
@@ -406,6 +509,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (json && Array.isArray(json.notes)) notes = json.notes;
         sendResponse({ ok: true, images: Array.from(new Set(images)), notes });
       } catch (e) {
+        try {
+          const { baseUrl } = await getAuthAndBase();
+          const url = (baseUrl || '').replace(/\/$/, '') + '/api/custom/property-import/add-note';
+          await emitApiDebug({ method: 'POST', url, error: String(e && e.message ? e.message : e) });
+        } catch(_) {}
         sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
       }
       return;
@@ -585,7 +693,8 @@ async function postSinglePropertyToEmlak(obj) {
       await ensureCorsBypassForBase(baseUrl);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20000);
-      const resp = await fetch(baseUrl + path, {
+      const url = baseUrl + path;
+      const resp = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -596,6 +705,8 @@ async function postSinglePropertyToEmlak(obj) {
         signal: controller.signal
       }).catch((e) => { throw e; });
       clearTimeout(timeout);
+      // Emit attempt debug
+      await emitApiDebug({ method, url, resp });
       return resp;
     };
 
@@ -613,6 +724,7 @@ async function postSinglePropertyToEmlak(obj) {
         const msg = String(e && e.message || e);
         attempts.push(`${method} ${path} -> error: ${msg}`);
         lastErrText = msg;
+        try { await emitApiDebug({ method, url: baseUrl + path, error: msg }); } catch(_) {}
         return null;
       }
     };
@@ -720,13 +832,15 @@ async function postSingleImageToEmlak({ sourceId, sourceFile, image }) {
   await ensureCorsBypassForBase(baseUrl);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
-  const resp = await fetch(baseUrl + '/api/custom/property-import/image', {
+  const url = baseUrl + '/api/custom/property-import/image';
+  const resp = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
     body: JSON.stringify({ sourceId, sourceFile, image }),
     signal: controller.signal
   }).catch((e)=>{ throw e; });
   clearTimeout(timeout);
+  try { await emitApiDebug({ method: 'POST', url, resp }); } catch(_) {}
   let data = null; try { data = await resp.json(); } catch {}
   return { ok: !!resp.ok, status: resp.status, data };
 }
@@ -766,6 +880,35 @@ async function uploadImagesForProperty(sourceId, imageUrls = []) {
       const dataUrl = rawBase64 && rawBase64.startsWith('data:')
         ? rawBase64
         : `data:${ct};base64,${rawBase64}`;
+
+      // Save a copy of the image into the Downloads folder using the image name
+      try {
+        const deriveImageFilename = (urlStr, contentType) => {
+          try {
+            const u = new URL(urlStr);
+            let name = (u.pathname.split('/').pop() || '').split('?')[0] || 'image';
+            // ensure extension
+            if (!/\.(png|jpe?g|webp|gif)$/i.test(name)) {
+              const ext = contentType?.includes('png') ? 'png'
+                : contentType?.includes('gif') ? 'gif'
+                : contentType?.includes('webp') ? 'webp'
+                : 'jpg';
+              name = name + '.' + ext;
+            }
+            return name;
+          } catch (_) {
+            return 'image.jpg';
+          }
+        };
+        // Save into a subfolder under the default Downloads directory
+        // Chrome downloads API only allows a relative path; this will create
+        // ~/Downloads/scrapped/ on macOS (or the equivalent on other OSes)
+        const filename = 'scrapped/' + deriveImageFilename(imgUrl, ct);
+        // Use Chrome downloads API; conflictAction to keep multiple copies if needed
+        console.log('image ', filename);
+        chrome.downloads?.download({ url: dataUrl, filename, saveAs: false, conflictAction: 'uniquify' });
+      } catch (_) {}
+
       const image = {
         base64: dataUrl,
         width: info?.width || 0,
@@ -795,16 +938,19 @@ async function emlakLogin(email, password, baseUrlInput) {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 20000);
     try {
-      const resp = await fetch(baseUrl + path, {
+      const url = baseUrl + path;
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'accept': '*/*' },
         body: bodyStr,
         signal: controller.signal
       });
       clearTimeout(t);
+      try { await emitApiDebug({ method: 'POST', url, resp }); } catch(_) {}
       return resp;
     } catch (e) {
       clearTimeout(t);
+      try { await emitApiDebug({ method: 'POST', url: baseUrl + path, error: String(e && e.message || e) }); } catch(_) {}
       throw e;
     }
   };

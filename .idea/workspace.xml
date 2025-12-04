@@ -4,15 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="new extension for detail page.">
-      <change afterPath="$PROJECT_DIR$/chrome-extension/geminiClient.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/chrome-extension/opennesAPI.js" afterDir="false" />
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="adding gemini and openstreet api's">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-ext/background.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/chrome-ext" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-extension/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/background.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/manifest.json" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/manifest.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/popup.html" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/popup.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-extension/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/popup.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -69,31 +65,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "main",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "/Users/adnansenyurt/Projects/jh/emlak/sahibinden/chrome-extension",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "/Users/adnansenyurt/Applications/IntelliJ IDEA Ultimate.app/Contents/plugins/javascript-plugin/jsLanguageServicesImpl/external",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/adnansenyurt/Projects/jh/emlak/sahibinden/chrome-extension&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/Users/adnansenyurt/Applications/IntelliJ IDEA Ultimate.app/Contents/plugins/javascript-plugin/jsLanguageServicesImpl/external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/chrome-extension" />
@@ -125,7 +121,11 @@
       <workItem from="1762531016994" duration="2173000" />
       <workItem from="1762553086131" duration="594000" />
       <workItem from="1762586739073" duration="2264000" />
-      <workItem from="1763973644814" duration="27602000" />
+      <workItem from="1763973644814" duration="28733000" />
+      <workItem from="1764097067600" duration="8843000" />
+      <workItem from="1764306950368" duration="503000" />
+      <workItem from="1764315502350" duration="581000" />
+      <workItem from="1764336949428" duration="4260000" />
     </task>
     <task id="LOCAL-00001" summary="merging with the note taking extension">
       <option name="closed" value="true" />
@@ -247,7 +247,15 @@
       <option name="project" value="LOCAL" />
       <updated>1763983410287</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="adding gemini and openstreet api's">
+      <option name="closed" value="true" />
+      <created>1764095664200</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1764095664200</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -285,7 +293,8 @@
     <MESSAGE value="saved html scrapping2" />
     <MESSAGE value="saved html scrapping3" />
     <MESSAGE value="new extension for detail page." />
-    <option name="LAST_COMMIT_MESSAGE" value="new extension for detail page." />
+    <MESSAGE value="adding gemini and openstreet api's" />
+    <option name="LAST_COMMIT_MESSAGE" value="adding gemini and openstreet api's" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
