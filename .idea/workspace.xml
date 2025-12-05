@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="adding gemini and openstreet api's">
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-ext" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/background.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/popup.js" afterDir="false" />
-    </list>
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="adding gemini and openstreet api's" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -126,6 +120,7 @@
       <workItem from="1764306950368" duration="503000" />
       <workItem from="1764315502350" duration="581000" />
       <workItem from="1764336949428" duration="4260000" />
+      <workItem from="1764877336958" duration="684000" />
     </task>
     <task id="LOCAL-00001" summary="merging with the note taking extension">
       <option name="closed" value="true" />
@@ -255,7 +250,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764095664200</updated>
     </task>
-    <option name="localTasksCounter" value="17" />
+    <task id="LOCAL-00017" summary="adding gemini and openstreet api's">
+      <option name="closed" value="true" />
+      <created>1764877380016</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1764877380016</updated>
+    </task>
+    <option name="localTasksCounter" value="18" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
