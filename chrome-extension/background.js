@@ -1,10 +1,19 @@
 // Lightweight background service worker for detail page scraping only
 // Load helper modules (MV3 service worker supports importScripts)
-try { importScripts('emlakConfig.js'); } catch (_) {}
+(function loadEmlakConfig() {
+  const cfgUrl = (typeof chrome !== 'undefined' && chrome.runtime?.getURL)
+    ? chrome.runtime.getURL('emlakConfig.js')
+    : 'emlakConfig.js';
+  try {
+    importScripts(cfgUrl);
+  } catch (e) {
+    throw new Error(`Failed to load emlakConfig.js from ${cfgUrl}: ${e && e.message ? e.message : e}`);
+  }
+})();
 try { importScripts('geminiClient.js'); } catch (_) {}
 try { importScripts('opennesAPI.js'); } catch (_) {}
 
-const { DEFAULT_EMLAK_BASE_URL, resolveEmlakBaseUrl: RESOLVE_EMLAK_BASE_URL } = (() => {
+const { DEFAULT_EMLAK_BASE_URL: CONFIG_DEFAULT_EMLAK_BASE_URL, resolveEmlakBaseUrl: RESOLVE_EMLAK_BASE_URL } = (() => {
   if (!self.EMLAK_CONFIG?.DEFAULT_EMLAK_BASE_URL || typeof self.EMLAK_CONFIG?.resolveEmlakBaseUrl !== 'function') {
     throw new Error('EmlakConfig is required and must define DEFAULT_EMLAK_BASE_URL and resolveEmlakBaseUrl');
   }

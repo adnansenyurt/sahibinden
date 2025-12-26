@@ -4,14 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="adding gemini and openstreet api's&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml&#10;#&#9;chrome-ext&#10;#&#9;chrome-extension/background.js&#10;#&#9;chrome-extension/manifest.json&#10;#&#9;chrome-extension/popup.html&#10;#&#9;chrome-extension/popup.js">
-      <change afterPath="$PROJECT_DIR$/.aiignore" afterDir="false" />
+    <list default="true" id="9cdd8d71-4edf-4631-9812-75109e81a147" name="Changes" comment="refactoring">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chrome-extension/background.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/background.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/geminiClient.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/geminiClient.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/popup.html" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/popup.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/chrome-extension/popup.js" beforeDir="false" afterPath="$PROJECT_DIR$/chrome-extension/popup.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/cr.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/cr.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -338,7 +333,15 @@
       <option name="project" value="LOCAL" />
       <updated>1766751137521</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="refactoring">
+      <option name="closed" value="true" />
+      <created>1766756972550</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1766756972550</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -388,7 +391,8 @@
     <MESSAGE value="adding gemini and openstreet api's" />
     <MESSAGE value="host name config is fixed" />
     <MESSAGE value="adding gemini and openstreet api's&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml&#10;#&#9;chrome-ext&#10;#&#9;chrome-extension/background.js&#10;#&#9;chrome-extension/manifest.json&#10;#&#9;chrome-extension/popup.html&#10;#&#9;chrome-extension/popup.js" />
-    <option name="LAST_COMMIT_MESSAGE" value="adding gemini and openstreet api's&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml&#10;#&#9;chrome-ext&#10;#&#9;chrome-extension/background.js&#10;#&#9;chrome-extension/manifest.json&#10;#&#9;chrome-extension/popup.html&#10;#&#9;chrome-extension/popup.js" />
+    <MESSAGE value="refactoring" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactoring" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
