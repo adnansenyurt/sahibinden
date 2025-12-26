@@ -1,18 +1,16 @@
 # Project Guidelines (Sahibinden Scraper + Notes Server)
 
-This document captures project-specific knowledge to help future development and debugging. It focuses on the Chrome extension in `chrome-ext/` and the local notes server in `server/`.
+This document captures project-specific knowledge to help future development and debugging. It focuses on the Chrome extension in `chrome-extension/` and the local notes server in `server/`.
 
 ---
 
 ## 1) Build / Configuration Instructions
 
 ### Chrome Extension (Manifest V3)
-- Location: `chrome-ext/`
+- Location: `chrome-extension/`
 - Background: `background.js` (service worker)
 - Content script: `notes_content.js`
 - Popup: `popup.html`
-- Extra module: `docxGenerator.js` (DOCX per-row generation)
-- Optional Excel template: `sahibinden_template.xlsx` (column placeholders)
 - Manifest permissions are already configured for:
   - Host permissions: `https://*.sahibinden.com/*`, `https://*.shbdn.com/*`, Google Maps, Overpass, Gemini API, `http://localhost:3000/*`, `http://localhost:8080/*`, and `file://*/*`.
   - Extension permissions: scripting, activeTab, downloads, notifications, storage, declarativeNetRequest, offscreen, tabs.
@@ -20,17 +18,13 @@ This document captures project-specific knowledge to help future development and
 Build/Load steps:
 1. No bundling step is required; code runs as-is.
 2. Open Chrome → Extensions → Enable Developer Mode.
-3. Load unpacked → select the `chrome-ext/` directory.
+3. Load unpacked → select the `chrome-extension/` directory.
 4. If you change background/service worker code, click “Reload” the extension and reopen the DevTools for the service worker to see new logs.
-5. Icons are SVG in `chrome-ext/icons`. If you need PNGs, see `chrome-ext/README.txt` for dimensions.
+5. Icons are SVG in `chrome-extension/icons`. If you need PNGs, see `chrome-extension/README.txt` for dimensions.
 
 Runtime configuration (extension):
 - Notes sync host must be reachable at `http://localhost:3000/` (already allowed by manifest).
 - The popup UI stores an auth token in Chrome storage; server only checks presence (not validity yet). Use any non-empty token for local dev.
-- DOCX template(s):
-  - Excel: if `sahibinden_template.xlsx` is packaged, column placeholders in row 2 are used to generate the sheet(s); otherwise, a built‑in fallback layout is used.
-  - Word: if `sahibinden_template.docx` is packaged, it will be used; otherwise, per‑row DOCX is generated via fallback.
-- Downloads: Excel and per-row DOCX files are saved into the browser’s Downloads folder.
 - Emlak API integration: popup allows configuring base URL (stored at `sahi:emlakUrl` in chrome.storage.local, default `http://localhost:8080`). JWT for API calls is stored under `sahi:jwt`; POSTs go to `/api/custom/properties/import` with fallback to `/api/properties/import`.
 
 ### Local Notes Server (Express)
@@ -96,10 +90,7 @@ These concrete calls were executed successfully during guideline preparation.
 ## 3) Additional Development Information
 
 ### Extension specifics
-- Background service worker does scraping orchestration, Excel and DOCX export, and note persistence/sync. See `background.js` near the DOCX generation section for how fields are mapped; notes are injected under both `{{Notlarım}}` and `{{Notlarim}}` placeholders to handle dotted ı.
-- DOCX template handling:
-  - If `sahibinden_template.docx` is present in the package, it will be used; otherwise, `generateDocxFromRow` fallback is used.
-  - Images: placeholder `{{IMAGE}}` in the template is replaced with the listing image when available.
+- Background service worker does scraping orchestration, and note persistence/sync. See `background.js` for how fields are mapped; notes are injected under both `{{Notlarım}}` and `{{Notlarim}}` placeholders to handle dotted ı.
 - Network permissions include localhost for talking to the notes server; ensure the port matches `manifest.json` if you change the server port.
 - Storage:
   - Public notes are stored in Chrome local storage under keys like `sahi:note:<rowId>` (legacy sync storage also checked for backward compatibility).
@@ -113,13 +104,11 @@ These concrete calls were executed successfully during guideline preparation.
 ### Code style & conventions
 - JavaScript (Node 16+ / MV3-compatible).
 - Prefer async/await for async flows; avoid mixing with raw callbacks unless required by Chrome APIs.
-- Keep logs guarded when noisy features exist; some debug logging in DOCX generation is behind `isDocxDebug()`.
 - Turkish field names in templates/placeholders are intentional; preserve exact casing and the dotted/undotted `ı` variants as implemented.
 
 ### Common pitfalls
 - Port 3000 already in use → stop the other process or edit `PORT` in `server/server.js`, and update `manifest.json` host permission accordingly.
 - Missing Authorization header → server returns 401 for API endpoints (except `/` and `/api/health`). The extension popup must capture and store the token.
-- Template not packaged → per-row DOCX still generated via fallback, but placeholders are not used; ensure the right placeholders exist in the template for richer output.
 - Chrome service worker changes require extension reload; content script changes require page refresh.
 
 ### Future improvements
@@ -130,18 +119,3 @@ These concrete calls were executed successfully during guideline preparation.
 
 
 ---
-
-## 4) DOCX generation – current configuration (Nov 2025)
-- DOCX options are selectable from the popup again. You can choose between fallback and template flows and toggle links/images.
-- Defaults:
-  - Şablonu atla (Force fallback): ON (uses built‑in fallback layout)
-  - Şablon düzenini güvenle uygula: ON (when template is used, applies styles safely)
-  - Resimleri devre dışı bırak: OFF (images enabled; WEBP skipped if unsupported by Word)
-  - Bağlantıları devre dışı bırak: OFF (hyperlinks enabled)
-- XML sanitization: enabled for all inserted text to remove invalid XML 1.0 characters.
-
-Verification steps:
-1) Reload the extension (Load unpacked → Reload) and open a local property detail page.
-2) Open the popup → DOCX Seçenekleri (Tanılama): adjust toggles as desired.
-3) Generate per‑row DOCX from the popup.
-4) Open the saved .docx in Word: it should open without repair dialogs; links are clickable; images render when provided in a supported format.

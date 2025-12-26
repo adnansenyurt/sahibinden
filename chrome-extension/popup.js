@@ -1,6 +1,7 @@
 // Minimal popup controller to trigger scraping and send result to remote API
 
-const DEFAULT_BASE_URL = 'http://localhost:8080';
+const DEFAULT_BASE_URL = (self.EMLAK_CONFIG?.DEFAULT_EMLAK_BASE_URL) || 'http://localhost:8084';
+const RESOLVE_BASE_URL = self.EMLAK_CONFIG?.resolveEmlakBaseUrl || ((v) => (v || DEFAULT_BASE_URL).replace(/\/$/, ''));
 const AUTH_PATHS = ['/api/custom/authenticate', '/api/authenticate'];
 
 async function getActiveTab() {
@@ -41,6 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const notePrivate = document.getElementById('notePrivate');
   const submitNoteBtn = document.getElementById('submitNoteBtn');
   const noteErr = document.getElementById('noteErr');
+  const geminiKeyToggle = document.getElementById('geminiKeyToggle');
+  const geminiKeyForm = document.getElementById('geminiKeyForm');
+  const geminiKeyInput = document.getElementById('geminiKeyInput');
+  const saveGeminiKeyBtn = document.getElementById('saveGeminiKeyBtn');
+  const testGeminiKeyBtn = document.getElementById('testGeminiKeyBtn');
+  const geminiKeyStatus = document.getElementById('geminiKeyStatus');
 
   let lastScrape = null;
 
@@ -81,11 +88,77 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load base URL
   (async () => {
     const saved = await getLocal('sahi:emlakUrl');
-    baseUrlInput && (baseUrlInput.value = saved || DEFAULT_BASE_URL);
+    baseUrlInput && (baseUrlInput.value = saved ? RESOLVE_BASE_URL(saved) : DEFAULT_BASE_URL);
   })();
   baseUrlInput?.addEventListener('change', async () => {
     const val = (baseUrlInput.value || '').trim();
-    await setLocal({ 'sahi:emlakUrl': val || DEFAULT_BASE_URL });
+    await setLocal({ 'sahi:emlakUrl': RESOLVE_BASE_URL(val) });
+  });
+
+  // Load and display Gemini API key status
+  (async () => {
+    const savedKey = await getLocal('sahi:geminiKey');
+    if (savedKey) {
+      geminiKeyInput.value = savedKey;
+      geminiKeyStatus.textContent = 'API anahtarı kayıtlı.';
+      geminiKeyStatus.style.color = '#28a745';
+    }
+  })();
+
+  // Gemini API key toggle
+  geminiKeyToggle?.addEventListener('click', () => {
+    const isVisible = geminiKeyForm.style.display !== 'none';
+    geminiKeyForm.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+      geminiKeyInput.focus();
+    }
+  });
+
+  // Save Gemini API key
+  saveGeminiKeyBtn?.addEventListener('click', async () => {
+    const key = (geminiKeyInput.value || '').trim();
+    if (!key) {
+      geminiKeyStatus.textContent = 'API anahtarı boş olamaz.';
+      geminiKeyStatus.style.color = '#dc3545';
+      return;
+    }
+    await setLocal({ 'sahi:geminiKey': key });
+    geminiKeyStatus.textContent = 'API anahtarı kaydedildi.';
+    geminiKeyStatus.style.color = '#28a745';
+    setTimeout(() => {
+      geminiKeyForm.style.display = 'none';
+    }, 1500);
+  });
+
+  // Test Gemini API key
+  testGeminiKeyBtn?.addEventListener('click', async () => {
+    const key = (geminiKeyInput.value || '').trim();
+    if (!key) {
+      geminiKeyStatus.textContent = 'API anahtarı boş olamaz.';
+      geminiKeyStatus.style.color = '#dc3545';
+      return;
+    }
+    geminiKeyStatus.textContent = 'Test ediliyor...';
+    geminiKeyStatus.style.color = '#007bff';
+
+    try {
+      // Send test request to background script
+      const response = await chrome.runtime.sendMessage({
+        type: 'testGeminiKey',
+        apiKey: key
+      });
+
+      if (response && response.ok) {
+        geminiKeyStatus.textContent = 'API anahtarı geçerli.';
+        geminiKeyStatus.style.color = '#28a745';
+      } else {
+        geminiKeyStatus.textContent = 'API anahtarı geçersiz: ' + (response?.message || 'Bilinmeyen hata');
+        geminiKeyStatus.style.color = '#dc3545';
+      }
+    } catch (error) {
+      geminiKeyStatus.textContent = 'Test başarısız: ' + (error?.message || error);
+      geminiKeyStatus.style.color = '#dc3545';
+    }
   });
 
   // Auth view helpers
@@ -254,8 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       if (loginBtn) loginBtn.disabled = true;
       setStatus('Giriş yapılıyor…');
-      const base = (baseUrlInput?.value || '').trim() || (await getLocal('sahi:emlakUrl')) || DEFAULT_BASE_URL;
-      const baseClean = base.replace(/\/$/, '');
+      const base = RESOLVE_BASE_URL((baseUrlInput?.value || '').trim() || (await getLocal('sahi:emlakUrl')) || DEFAULT_BASE_URL);
+      const baseClean = base;
       // Delegate login to background to avoid CORS from popup
       const res = await chrome.runtime.sendMessage({ type: 'emlakLogin', email, password, baseUrl: baseClean });
       if (!res?.ok || !res.token) throw new Error(res?.error || 'Kimlik doğrulama başarısız.');

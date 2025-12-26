@@ -1,7 +1,11 @@
 // Lightweight background service worker for detail page scraping only
 // Load helper modules (MV3 service worker supports importScripts)
+try { importScripts('emlakConfig.js'); } catch (_) {}
 try { importScripts('geminiClient.js'); } catch (_) {}
 try { importScripts('opennesAPI.js'); } catch (_) {}
+
+const DEFAULT_EMLAK_BASE_URL = (self.EMLAK_CONFIG?.DEFAULT_EMLAK_BASE_URL) || 'http://localhost:8084';
+const RESOLVE_EMLAK_BASE_URL = self.EMLAK_CONFIG?.resolveEmlakBaseUrl || ((v) => (v || DEFAULT_EMLAK_BASE_URL).replace(/\/$/, ''));
 
 // Scrape essential fields by executing a function in the page context
 async function scrapeDetailInPage(tabId, url) {
@@ -120,11 +124,11 @@ async function scrapeDetailInPage(tabId, url) {
   }
 }
 
-// --- Debug helper to emit API responses to popup for localhost:8080 (or configured base) ---
+// --- Debug helper to emit API responses to popup for localhost:8084 (or configured base) ---
 async function emitApiDebug({ method, url, resp, error, note, bodyLimit = 1000 }) {
   try {
     const { baseUrl } = await getAuthAndBase().catch(() => ({ baseUrl: '' }));
-    const base = (baseUrl || 'http://localhost:8080').replace(/\/$/, '');
+    const base = RESOLVE_EMLAK_BASE_URL(baseUrl);
     if (!url || !String(url).startsWith(base)) return; // only log calls to our API base
     const payload = { action: 'apiDebug', source: 'background', method: method || 'GET', url: String(url), note: note || '' };
     if (resp) {
@@ -214,7 +218,7 @@ function normalizeImageUrl(u) {
 async function getAuthAndBase() {
   const vals = await new Promise((res) => chrome.storage.local.get(['sahi:jwt', 'sahi:emlakUrl'], res));
   const jwt = vals['sahi:jwt'] || '';
-  const baseUrl = (vals['sahi:emlakUrl'] || 'http://localhost:8080').replace(/\/$/, '');
+  const baseUrl = RESOLVE_EMLAK_BASE_URL(vals['sahi:emlakUrl']);
   return { jwt, baseUrl };
 }
 
@@ -527,6 +531,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
       }
       return;
+    } else if (msg && msg.type === 'testGeminiKey') {
+      // Test Gemini API key
+      const { apiKey } = msg;
+      try {
+        if (typeof testGeminiAPI === 'function') {
+          const result = await testGeminiAPI(apiKey);
+          sendResponse(result);
+        } else {
+          sendResponse({ ok: false, message: 'Gemini test fonksiyonu bulunamadı.' });
+        }
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
+      }
+      return;
     }
     sendResponse({ error: 'Unknown message' });
   })();
@@ -682,7 +700,7 @@ async function postSinglePropertyToEmlak(obj) {
   try {
     const vals = await new Promise((res) => chrome.storage.local.get(['sahi:jwt', 'sahi:emlakUrl'], res));
     const jwt = vals['sahi:jwt'];
-    const baseUrl = (vals['sahi:emlakUrl'] || 'http://localhost:8080').replace(/\/$/, '');
+    const baseUrl = RESOLVE_EMLAK_BASE_URL(vals['sahi:emlakUrl']);
     if (!jwt) {
       return { ok: false, reason: 'no_jwt', error: 'No JWT in storage. Please login.' };
     }
@@ -827,7 +845,7 @@ async function fetchImageInfo(url) {
 async function postSingleImageToEmlak({ sourceId, sourceFile, image }) {
   const vals = await new Promise(res => chrome.storage.local.get(['sahi:jwt','sahi:emlakUrl'], res));
   const jwt = vals['sahi:jwt'];
-  const baseUrl = (vals['sahi:emlakUrl'] || 'http://localhost:8080').replace(/\/$/, '');
+  const baseUrl = RESOLVE_EMLAK_BASE_URL(vals['sahi:emlakUrl']);
   if (!jwt) return { ok: false, reason: 'no_jwt' };
   await ensureCorsBypassForBase(baseUrl);
   const controller = new AbortController();
@@ -929,7 +947,7 @@ async function uploadImagesForProperty(sourceId, imageUrls = []) {
 
 // Login to Emlak API from background using fetch (XMLHttpRequest is not available in MV3 service workers)
 async function emlakLogin(email, password, baseUrlInput) {
-  const baseUrl = (baseUrlInput || 'http://localhost:8080').replace(/\/$/, '');
+  const baseUrl = RESOLVE_EMLAK_BASE_URL(baseUrlInput);
   const bodyStr = JSON.stringify({ username: email, email, password, rememberMe: false });
   const tryPaths = ['/api/custom/authenticate', '/api/authenticate'];
 
