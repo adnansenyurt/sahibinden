@@ -52,4 +52,4 @@ Posting rule:
 
 Configuration:
 - Token storage key: chrome.storage.local['sahi:jwt'] (already added by popup login).
-- Optional base URL override: chrome.storage.local['sahi:emlakUrl'] (defaults to http://localhost:8080).
+- Optional base URL override: chrome.storage.local['sahi:emlakUrl'] (defaults to http://localhost:8084).

@@ -4,8 +4,13 @@ try { importScripts('emlakConfig.js'); } catch (_) {}
 try { importScripts('geminiClient.js'); } catch (_) {}
 try { importScripts('opennesAPI.js'); } catch (_) {}
 
-const DEFAULT_EMLAK_BASE_URL = (self.EMLAK_CONFIG?.DEFAULT_EMLAK_BASE_URL) || 'http://localhost:8084';
-const RESOLVE_EMLAK_BASE_URL = self.EMLAK_CONFIG?.resolveEmlakBaseUrl || ((v) => (v || DEFAULT_EMLAK_BASE_URL).replace(/\/$/, ''));
+const { DEFAULT_EMLAK_BASE_URL, resolveEmlakBaseUrl: RESOLVE_EMLAK_BASE_URL } = (() => {
+  if (!self.EMLAK_CONFIG?.DEFAULT_EMLAK_BASE_URL || typeof self.EMLAK_CONFIG?.resolveEmlakBaseUrl !== 'function') {
+    throw new Error('EmlakConfig is required and must define DEFAULT_EMLAK_BASE_URL and resolveEmlakBaseUrl');
+  }
+  return self.EMLAK_CONFIG;
+})();
+const isSahibindenDetailUrl = (url = '') => /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
 
 // Scrape essential fields by executing a function in the page context
 async function scrapeDetailInPage(tabId, url) {
@@ -124,7 +129,7 @@ async function scrapeDetailInPage(tabId, url) {
   }
 }
 
-// --- Debug helper to emit API responses to popup for localhost:8084 (or configured base) ---
+// --- Debug helper to emit API responses to popup for the configured base ---
 async function emitApiDebug({ method, url, resp, error, note, bodyLimit = 1000 }) {
   try {
     const { baseUrl } = await getAuthAndBase().catch(() => ({ baseUrl: '' }));
@@ -302,26 +307,47 @@ async function computeNewImagesFor(sourceId, scrapedUrls = []) {
   return Array.from(new Set(diff));
 }
 
+function diffNewImages(scrapedImageUrls = [], remoteImages = []) {
+  const remoteSet = new Set((remoteImages || []).map(normalizeImageUrl).filter(Boolean));
+  return Array.from(new Set((scrapedImageUrls || [])
+    .map(normalizeImageUrl)
+    .filter(Boolean)
+    .filter(u => !remoteSet.has(u))));
+}
+
+async function computeNewImagesSafe(sourceId, scrapedImageUrls) {
+  if (!sourceId) return [];
+  try { return await computeNewImagesFor(sourceId, scrapedImageUrls); } catch (_) { return []; }
+}
+
+async function uploadNewImagesIfNeeded(enriched, sendResult) {
+  const { sourceId, scrapedImageUrls } = deriveScrapeMeta(enriched || {});
+  if (!sendResult?.ok || !sourceId || !scrapedImageUrls.length) return;
+  const urls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
+  if (!urls.length) return;
+  try {
+    await uploadImagesForProperty(sourceId, urls);
+  } catch (e) {
+    console.warn('Image upload flow failed:', e);
+  }
+}
+
 // Helper: perform initialization sync for a given tab/url when logged in
 async function doInitSyncForTab(tabId, url) {
   try {
-    const isDetail = /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
+    const isDetail = isSahibindenDetailUrl(url || '');
     if (!isDetail) return;
     const res = await scrapeDetailInPage(tabId, url);
     if (res && res.success && res.data) {
       const enriched = await enrichWithExternal(res.data || {});
-      const dto = mapToPropertyDto(enriched || {});
-      const sourceId = dto?.id || '';
-      const ilanNo = enriched['İlan No'] || sourceId || '';
-      const scrapedImageUrls = Array.isArray(enriched.scrapedImageUrls) ? enriched.scrapedImageUrls : [];
+      const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
       // If logged in, fetch remote sync data (notes + images) ONCE and compute diffs locally.
       const { jwt } = await getAuthAndBase();
       if (jwt && sourceId) {
         const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
         // Compute new images by diffing scraped vs. remote, without triggering another network call
-        const remoteSet = new Set((sync?.images || []).map(normalizeImageUrl).filter(Boolean));
-        const normScraped = scrapedImageUrls.map(normalizeImageUrl).filter(Boolean);
-        const newImageUrls = Array.from(new Set(normScraped.filter(u => !remoteSet.has(u))));
+        const remoteImages = sync?.images || [];
+        const newImageUrls = diffNewImages(scrapedImageUrls, remoteImages);
 
         // Cache last tab data including computed new images
         lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
@@ -334,7 +360,7 @@ async function doInitSyncForTab(tabId, url) {
             sourceId,
             ilanNo,
             notes: sync?.notes || [],
-            images: sync?.images || []
+            images: remoteImages
           });
         } catch (_) {}
       } else {
@@ -350,7 +376,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   try {
     if (changeInfo.status === 'complete') {
       const url = (tab && tab.url) || changeInfo.url || '';
-      const isDetail = /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
+      const isDetail = isSahibindenDetailUrl(url || '');
       if (!isDetail) {
         // Clear cache for non-detail pages on completion
         lastTabData.delete(tabId);
@@ -387,43 +413,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg && msg.type === 'scrapeCurrent') {
       const { url, tabId } = msg;
       // Only allow detail pages
-      const ok = /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
+      const ok = isSahibindenDetailUrl(url || '');
       if (!ok) {
         sendResponse({ error: 'This is not a Sahibinden detail page.' });
         return;
       }
       const result = await scrapeDetailInPage(tabId, url);
+      let enrichedData = null;
       try {
         // Cache last scraped info for the tab and compute sync diffs
         if (result && result.success && result.data) {
-          const enriched = await enrichWithExternal(result.data || {});
-          const dto = mapToPropertyDto(enriched || {});
-          const sourceId = dto?.id || '';
-          const ilanNo = enriched['İlan No'] || sourceId || '';
-          const scrapedImageUrls = Array.isArray(enriched.scrapedImageUrls) ? enriched.scrapedImageUrls : [];
-          let newImageUrls = [];
-          try { newImageUrls = await computeNewImagesFor(sourceId, scrapedImageUrls); } catch (_) { newImageUrls = []; }
-          lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+          enrichedData = await enrichWithExternal(result.data || {});
+          const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enrichedData);
+          const newImageUrls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
+          lastTabData.set(tabId, { url, scraped: enrichedData, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
         }
         // Fire-and-forget auto send to API if scraping succeeded
         if (result && result.success && result.data) {
           try { chrome.runtime.sendMessage({ action: 'autoSendStart' }); } catch (_) {}
           (async () => {
             try {
-              const enriched = await enrichWithExternal(result.data || {});
+              const enriched = enrichedData || await enrichWithExternal(result.data || {});
               const res = await postSinglePropertyToEmlak(enriched);
-              // After posting main JSON, if we have images and a sourceId, upload images sequentially
-              try {
-                const dto = mapToPropertyDto(enriched || {});
-                const sourceId = dto?.id || '';
-                const scrapedUrls = Array.isArray(enriched?.scrapedImageUrls) ? enriched.scrapedImageUrls : [];
-                const urls = await computeNewImagesFor(sourceId, scrapedUrls);
-                if (res?.ok && sourceId && urls.length) {
-                  await uploadImagesForProperty(sourceId, urls);
-                }
-              } catch (e) {
-                console.warn('Image upload flow failed:', e);
-              }
+              await uploadNewImagesIfNeeded(enriched, res);
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: !!res?.ok, error: res?.error || null }); } catch (_) {}
             } catch (e) {
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
@@ -435,20 +447,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
     } else if (msg && msg.type === 'emlakSend') {
       const data = await enrichWithExternal(msg.data || {});
-      const res = await postSinglePropertyToEmlak(data);
-      // After posting main JSON, if we have images and a sourceId, upload images sequentially
-      try {
-        const dto = mapToPropertyDto(data || {});
-        const sourceId = dto?.id || '';
-        const scrapedUrls = Array.isArray(data?.scrapedImageUrls) ? data.scrapedImageUrls : [];
-        const urls = await computeNewImagesFor(sourceId, scrapedUrls);
-        if (res?.ok && sourceId && urls.length) {
-          await uploadImagesForProperty(sourceId, urls);
-        }
-      } catch (e) {
-        // Non-fatal
-        console.warn('Image upload flow failed:', e);
+      const contextUrl = data?.URL || data?.url || sender?.tab?.url || '';
+      if (!isSahibindenDetailUrl(contextUrl)) {
+        sendResponse({ ok: false, error: 'Only Sahibinden detail pages are supported.', reason: 'invalid_url', url: contextUrl });
+        return;
       }
+      const { sourceId } = deriveScrapeMeta(data || {});
+      if (!sourceId) {
+        sendResponse({ ok: false, error: 'Geçerli ilan numarası bulunamadı.', reason: 'missing_source_id' });
+        return;
+      }
+      const res = await postSinglePropertyToEmlak(data);
+      await uploadNewImagesIfNeeded(data, res);
       sendResponse(res);
       return;
     } else if (msg && msg.type === 'getCurrentInfo') {
@@ -693,6 +703,14 @@ function mapToPropertyDto(scraped) {
     original: s
   };
   return dto;
+}
+
+function deriveScrapeMeta(enriched) {
+  const dto = mapToPropertyDto(enriched || {});
+  const sourceId = dto?.id || '';
+  const ilanNo = (enriched && enriched['İlan No']) || sourceId || '';
+  const scrapedImageUrls = Array.isArray(enriched?.scrapedImageUrls) ? enriched.scrapedImageUrls : [];
+  return { sourceId, ilanNo, scrapedImageUrls };
 }
 
 // Post a single scraped object to the Emlak API using stored JWT
