@@ -124,12 +124,39 @@ async function scrapeDetailInPage(tabId, url) {
             out['Açıklama'] = txt;
           } catch {}
 
-          // Agent name/phone
+          // Agent name from user-info-agent h3
           try {
-            const nameEl = document.querySelector('.userName, .classifiedUserName, .user-info .name');
-            const phoneEl = document.querySelector('.phone, .pretty-phone-part, a.phone');
-            if (nameEl) out['Agent Adı'] = nameEl.textContent.trim();
-            if (phoneEl) out['Agent Telefon'] = phoneEl.textContent.trim();
+            const agentNameEl = document.querySelector('.user-info-agent h3, .userName, .classifiedUserName');
+            if (agentNameEl) out['Agent Adı'] = agentNameEl.textContent.trim();
+          } catch {}
+
+          // Mobile phone from user-info-phones: find dl-group where dt="Cep", get dd value
+          try {
+            const phonesContainer = document.querySelector('.user-info-phones');
+            if (phonesContainer) {
+              const dlGroups = phonesContainer.querySelectorAll('.dl-group');
+              for (const dlGroup of dlGroups) {
+                const dt = dlGroup.querySelector('dt');
+                const dd = dlGroup.querySelector('dd');
+                if (dt && dd && dt.textContent.trim() === 'Cep') {
+                  out['Agent Telefon'] = dd.textContent.trim();
+                  break;
+                }
+              }
+            }
+            // Fallback to old selectors if not found
+            if (!out['Agent Telefon']) {
+              const phoneEl = document.querySelector('.phone, .pretty-phone-part, a.phone');
+              if (phoneEl) out['Agent Telefon'] = phoneEl.textContent.trim();
+            }
+          } catch {}
+
+          // Agency name from user-info-store-name link title
+          try {
+            const storeLink = document.querySelector('.user-info-store-name a');
+            if (storeLink) {
+              out['Emlak Ofisi'] = storeLink.getAttribute('title') || storeLink.textContent.trim();
+            }
           } catch {}
 
           // Images: ONLY collect from .classifiedDetailMainPhoto label_images_* picture img
@@ -315,8 +342,8 @@ async function fetchSyncDataForSource(sourceId) {
       // Emit debug info to popup for every call (success or failure)
       await emitApiDebug({ method: 'GET', url, resp });
       if (!resp.ok) {
-        // For 401/403, still log but return empty to indicate no data
-        if (resp.status === 401 || resp.status === 403) {
+        // For 400/401/403, return empty - 400 means property doesn't exist yet (not an error)
+        if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
           return [];
         }
         try { console.error('[SAHI][sync] GET failed', { url, status: resp.status, statusText: resp.statusText }); } catch {}
@@ -484,12 +511,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const result = await scrapeDetailInPage(tabId, url);
       let enrichedData = null;
       try {
-        // Cache last scraped info for the tab and compute sync diffs
+        // Cache last scraped info for the tab (newImageUrls computed after property creation)
         if (result && result.success && result.data) {
           enrichedData = await enrichWithExternal(result.data || {});
           const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enrichedData);
-          const newImageUrls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
-          lastTabData.set(tabId, { url, scraped: enrichedData, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+          // Cache without newImageUrls - will be computed after property is created in backend
+          lastTabData.set(tabId, { url, scraped: enrichedData, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
         }
         // Fire-and-forget auto send to API if scraping succeeded
         if (result && result.success && result.data) {
@@ -497,8 +524,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           (async () => {
             try {
               const enriched = enrichedData || await enrichWithExternal(result.data || {});
+              // First create/update the property in the backend
               const res = await postSinglePropertyToEmlak(enriched);
+              // Only after property exists, compute new images and upload them
               await uploadNewImagesIfNeeded(enriched, res);
+              // Update cache with computed newImageUrls now that property exists
+              if (res?.ok) {
+                const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
+                const newImageUrls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
+                lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+              }
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: !!res?.ok, error: res?.error || null }); } catch (_) {}
             } catch (e) {
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
@@ -766,6 +801,7 @@ function mapToPropertyDto(scraped) {
   const { city, district, neighborhood } = splitCityDistrict(locText);
   const contactName = s['Agent Adı'] || s['İletişim'] || '';
   const contactPhone = s['Agent Telefon'] || '';
+  const agencyName = s['Emlak Ofisi'] || '';
   const listingFrom = s['Kimden'] || '';
 
   // Infer listing type (SALE/RENT) and currency from URL and price text
@@ -799,6 +835,7 @@ function mapToPropertyDto(scraped) {
     longitude,
     contactName,
     contactPhone,
+    agencyName,
     listingFrom,
     // Enrichment fields carried from scraping/integration outputs (migrated from chrome-ext)
     frontageText: s['Cephe'] || '',
@@ -1024,34 +1061,6 @@ async function uploadImagesForProperty(sourceId, imageUrls = []) {
       const dataUrl = rawBase64 && rawBase64.startsWith('data:')
         ? rawBase64
         : `data:${ct};base64,${rawBase64}`;
-
-      // Save a copy of the image into the Downloads folder using the image name
-      try {
-        const deriveImageFilename = (urlStr, contentType) => {
-          try {
-            const u = new URL(urlStr);
-            let name = (u.pathname.split('/').pop() || '').split('?')[0] || 'image';
-            // ensure extension
-            if (!/\.(png|jpe?g|webp|gif)$/i.test(name)) {
-              const ext = contentType?.includes('png') ? 'png'
-                : contentType?.includes('gif') ? 'gif'
-                : contentType?.includes('webp') ? 'webp'
-                : 'jpg';
-              name = name + '.' + ext;
-            }
-            return name;
-          } catch (_) {
-            return 'image.jpg';
-          }
-        };
-        // Save into a subfolder under the default Downloads directory
-        // Chrome downloads API only allows a relative path; this will create
-        // ~/Downloads/scrapped/ on macOS (or the equivalent on other OSes)
-        const filename = 'scrapped/' + deriveImageFilename(imgUrl, ct);
-        // Use Chrome downloads API; conflictAction to keep multiple copies if needed
-        console.log('image ', filename);
-        chrome.downloads?.download({ url: dataUrl, filename, saveAs: false, conflictAction: 'uniquify' });
-      } catch (_) {}
 
       const image = {
         base64: dataUrl,

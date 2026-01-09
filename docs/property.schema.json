@@ -47,8 +47,9 @@
       "maximum": 180,
       "description": "Decimal longitude extracted from mapUrl (if present)."
     },
-    "contactName": { "type": "string", "description": "Agent/owner name from page." },
-    "contactPhone": { "type": "string", "description": "Agent/office phone (unformatted)." },
+    "contactName": { "type": "string", "description": "Agent/owner name from user-info-agent h3 element." },
+    "contactPhone": { "type": "string", "description": "Mobile phone from user-info-phones where dt='Cep'." },
+    "agencyName": { "type": "string", "description": "Agency/store name from user-info-store-name link title." },
     "listingFrom": { "type": "string", "description": "'Kimden' field (owner/real estate office etc.)." },
     "frontageText": { "type": "string", "description": "'Cephe' value(s) as text." },
     "opennessText": { "type": "string", "description": "Cevre openness summary lines." },
