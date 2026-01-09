@@ -21,6 +21,60 @@ const { DEFAULT_EMLAK_BASE_URL: CONFIG_DEFAULT_EMLAK_BASE_URL, resolveEmlakBaseU
 })();
 const isSahibindenDetailUrl = (url = '') => /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
 
+// Turkish to English field name translation map for classifiedInfoList fields
+const FIELD_NAME_TRANSLATIONS = {
+  'İlan No': 'listingId',
+  'Emlak Tipi': 'propertyType',
+  'm² (Brüt)': 'grossArea',
+  'm² (Net)': 'netArea',
+  'Oda Sayısı': 'roomCount',
+  'Bina Yaşı': 'buildingAge',
+  'Bulunduğu Kat': 'floor',
+  'Kat Sayısı': 'totalFloors',
+  'Isıtma': 'heating',
+  'Banyo Sayısı': 'bathroomCount',
+  'Balkon': 'balcony',
+  'Eşyalı': 'furnished',
+  'Kullanım Durumu': 'usageStatus',
+  'Site İçerisinde': 'inComplex',
+  'Aidat': 'dues',
+  'Takas': 'exchange',
+  'Krediye Uygun': 'mortgageEligible',
+  'Cephe': 'frontage',
+  'Kimden': 'listingFrom',
+  'İl / İlçe': 'location',
+  'Yapı Tipi': 'buildingType',
+  'Yapının Durumu': 'buildingCondition',
+  'Konut Şekli': 'housingType',
+  'Otopark': 'parking',
+  'Asansör': 'elevator',
+  'Güvenlik': 'security',
+  'Yüzme Havuzu': 'swimmingPool',
+  'Spor Salonu': 'gym',
+  'Kapıcı': 'doorman',
+  'Siteye Ait': 'complexOwned',
+  'Konut Tipi': 'residenceType',
+  'Tapu Durumu': 'deedStatus',
+  'Depozito': 'deposit',
+  'Yatırıma Uygun': 'investmentSuitable',
+  'Ara Kat': 'middleFloor',
+  'En Alt Kat': 'groundFloor',
+  'En Üst Kat': 'topFloor',
+  'Giriş Katı': 'entryFloor',
+  'Bahçe Katı': 'gardenFloor',
+  'Müstakil Giriş': 'privateEntrance',
+  'Çatı Katı': 'penthouse',
+  'Zemin Kat': 'groundLevel',
+  'Arsa m²': 'landArea',
+  'Ada No': 'blockNumber',
+  'Parsel No': 'parcelNumber',
+  'Pafta No': 'sheetNumber',
+  'Gabari': 'buildingHeight',
+  'Kaks': 'floorAreaRatio',
+  'Taks': 'buildingCoverageRatio',
+  'İmar Durumu': 'zoningStatus'
+};
+
 // Scrape essential fields by executing a function in the page context
 async function scrapeDetailInPage(tabId, url) {
   if (!tabId) return { error: 'No tabId provided' };
@@ -665,6 +719,38 @@ function splitCityDistrict(locationText) {
   };
 }
 
+function inferListingType(url) {
+  const u = String(url || '').toLowerCase();
+  if (u.includes('/kiralik/') || u.includes('-kiralik-')) return 'RENT';
+  if (u.includes('/satilik/') || u.includes('-satilik-')) return 'SALE';
+  return 'SALE'; // default to SALE if unable to determine
+}
+
+function inferPriceCurrency(priceText) {
+  const p = String(priceText || '').toUpperCase();
+  if (p.includes('$') || p.includes('USD')) return 'USD';
+  if (p.includes('€') || p.includes('EUR')) return 'EUR';
+  if (p.includes('£') || p.includes('GBP')) return 'GBP';
+  return 'TRY'; // default to Turkish Lira
+}
+
+// Translate Turkish field names to English and extract values from scraped data
+function extractTranslatedFields(scraped) {
+  const translated = {};
+  const s = scraped || {};
+
+  for (const [turkishKey, englishKey] of Object.entries(FIELD_NAME_TRANSLATIONS)) {
+    if (s.hasOwnProperty(turkishKey) && s[turkishKey] !== undefined && s[turkishKey] !== null) {
+      const value = String(s[turkishKey]).trim();
+      if (value) {
+        translated[englishKey] = value;
+      }
+    }
+  }
+
+  return translated;
+}
+
 function mapToPropertyDto(scraped) {
   const s = scraped || {};
   const url = s.URL || '';
@@ -682,14 +768,27 @@ function mapToPropertyDto(scraped) {
   const contactPhone = s['Agent Telefon'] || '';
   const listingFrom = s['Kimden'] || '';
 
+  // Infer listing type (SALE/RENT) and currency from URL and price text
+  const type = inferListingType(url);
+  const priceCurrency = inferPriceCurrency(priceText);
+
+  // Extract and translate all classifiedInfoList fields to English
+  const translatedFields = extractTranslatedFields(s);
+
   // Construct DTO – align with docs/cr.md proposed schema (server will ignore unknowns)
+  // Start with translated fields so explicit mappings below can override if needed
   const dto = {
+    // Translated fields from classifiedInfoList (English keys)
+    ...translatedFields,
+    // Core fields (explicit mappings take precedence)
     id: id || null,
     url,
     title,
     description,
     priceText,
     price,
+    priceCurrency,
+    type,
     city,
     district,
     neighborhood,
