@@ -422,7 +422,8 @@ async function uploadNewImagesIfNeeded(enriched, sendResult) {
   }
 }
 
-// Helper: perform initialization sync for a given tab/url when logged in
+// Helper: perform initialization for a given tab/url - only caches scraped data locally
+// Does NOT call sync endpoints (those should only be called after property is created)
 async function doInitSyncForTab(tabId, url) {
   try {
     const isDetail = isSahibindenDetailUrl(url || '');
@@ -431,32 +432,21 @@ async function doInitSyncForTab(tabId, url) {
     if (res && res.success && res.data) {
       const enriched = await enrichWithExternal(res.data || {});
       const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
-      // If logged in, fetch remote sync data (notes + images) ONCE and compute diffs locally.
-      const { jwt } = await getAuthAndBase();
-      if (jwt && sourceId) {
-        const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
-        // Compute new images by diffing scraped vs. remote, without triggering another network call
-        const remoteImages = sync?.images || [];
-        const newImageUrls = diffNewImages(scrapedImageUrls, remoteImages);
+      // Cache scraped data locally - sync data will be fetched after property is created
+      lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
 
-        // Cache last tab data including computed new images
-        lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
-
-        // Notify popup with the same sync payload to avoid duplicate fetches
-        try {
-          chrome.runtime.sendMessage({
-            action: 'syncStatus',
-            ok: !!sync?.ok,
-            sourceId,
-            ilanNo,
-            notes: sync?.notes || [],
-            images: remoteImages
-          });
-        } catch (_) {}
-      } else {
-        // Not logged in or missing sourceId: cache scraped basics without newImageUrls
-        lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
-      }
+      // Notify popup with scraped info (no sync data yet - property may not exist)
+      try {
+        chrome.runtime.sendMessage({
+          action: 'syncStatus',
+          ok: false,
+          sourceId,
+          ilanNo,
+          notes: [],
+          images: [],
+          pendingSync: true  // indicates sync data not yet fetched
+        });
+      } catch (_) {}
     }
   } catch (_) {}
 }
@@ -531,8 +521,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               // Update cache with computed newImageUrls now that property exists
               if (res?.ok) {
                 const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
-                const newImageUrls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
+                // Now that property exists, fetch sync data from backend
+                const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
+                const remoteImages = sync?.images || [];
+                const newImageUrls = diffNewImages(scrapedImageUrls, remoteImages);
                 lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+                // Notify popup with actual sync data
+                try {
+                  chrome.runtime.sendMessage({
+                    action: 'syncStatus',
+                    ok: !!sync?.ok,
+                    sourceId,
+                    ilanNo,
+                    notes: sync?.notes || [],
+                    images: remoteImages,
+                    pendingSync: false
+                  });
+                } catch (_) {}
               }
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: !!res?.ok, error: res?.error || null }); } catch (_) {}
             } catch (e) {
