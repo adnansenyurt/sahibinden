@@ -220,7 +220,10 @@ async function callGeminiWithFallback(body, apiKey) {
 async function callGemini(body, apiKey, model) {
   try {
     const url = 'https://generativelanguage.googleapis.com/v1/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(apiKey);
-    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const payload = { ...body };
+    delete payload.__prepared;
+    delete payload.__modelName;
+    const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const status = resp.status;
     const raw = await safeReadText(resp);
     if (!resp.ok) {

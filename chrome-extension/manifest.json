@@ -16,6 +16,7 @@
     "https://*.shbdn.com/*",
     "http://localhost:8080/*",
     "http://localhost:8084/*",
+    "https://*.adnansenyurt.com/*",
     "https://overpass-api.de/*",
     "https://overpass.kumi.systems/*",
     "https://overpass.openstreetmap.ru/*",

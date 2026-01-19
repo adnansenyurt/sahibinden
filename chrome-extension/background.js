@@ -21,6 +21,60 @@ const { DEFAULT_EMLAK_BASE_URL: CONFIG_DEFAULT_EMLAK_BASE_URL, resolveEmlakBaseU
 })();
 const isSahibindenDetailUrl = (url = '') => /^https:\/\/([^./]+\.)*sahibinden\.com\/ilan\//.test(url || '');
 
+// Turkish to English field name translation map for classifiedInfoList fields
+const FIELD_NAME_TRANSLATIONS = {
+  'İlan No': 'listingId',
+  'Emlak Tipi': 'propertyType',
+  'm² (Brüt)': 'grossArea',
+  'm² (Net)': 'netArea',
+  'Oda Sayısı': 'roomCount',
+  'Bina Yaşı': 'buildingAge',
+  'Bulunduğu Kat': 'floor',
+  'Kat Sayısı': 'totalFloors',
+  'Isıtma': 'heating',
+  'Banyo Sayısı': 'bathroomCount',
+  'Balkon': 'balcony',
+  'Eşyalı': 'furnished',
+  'Kullanım Durumu': 'usageStatus',
+  'Site İçerisinde': 'inComplex',
+  'Aidat': 'dues',
+  'Takas': 'exchange',
+  'Krediye Uygun': 'mortgageEligible',
+  'Cephe': 'frontage',
+  'Kimden': 'listingFrom',
+  'İl / İlçe': 'location',
+  'Yapı Tipi': 'buildingType',
+  'Yapının Durumu': 'buildingCondition',
+  'Konut Şekli': 'housingType',
+  'Otopark': 'parking',
+  'Asansör': 'elevator',
+  'Güvenlik': 'security',
+  'Yüzme Havuzu': 'swimmingPool',
+  'Spor Salonu': 'gym',
+  'Kapıcı': 'doorman',
+  'Siteye Ait': 'complexOwned',
+  'Konut Tipi': 'residenceType',
+  'Tapu Durumu': 'deedStatus',
+  'Depozito': 'deposit',
+  'Yatırıma Uygun': 'investmentSuitable',
+  'Ara Kat': 'middleFloor',
+  'En Alt Kat': 'groundFloor',
+  'En Üst Kat': 'topFloor',
+  'Giriş Katı': 'entryFloor',
+  'Bahçe Katı': 'gardenFloor',
+  'Müstakil Giriş': 'privateEntrance',
+  'Çatı Katı': 'penthouse',
+  'Zemin Kat': 'groundLevel',
+  'Arsa m²': 'landArea',
+  'Ada No': 'blockNumber',
+  'Parsel No': 'parcelNumber',
+  'Pafta No': 'sheetNumber',
+  'Gabari': 'buildingHeight',
+  'Kaks': 'floorAreaRatio',
+  'Taks': 'buildingCoverageRatio',
+  'İmar Durumu': 'zoningStatus'
+};
+
 // Scrape essential fields by executing a function in the page context
 async function scrapeDetailInPage(tabId, url) {
   if (!tabId) return { error: 'No tabId provided' };
@@ -70,12 +124,39 @@ async function scrapeDetailInPage(tabId, url) {
             out['Açıklama'] = txt;
           } catch {}
 
-          // Agent name/phone
+          // Agent name from user-info-agent h3
           try {
-            const nameEl = document.querySelector('.userName, .classifiedUserName, .user-info .name');
-            const phoneEl = document.querySelector('.phone, .pretty-phone-part, a.phone');
-            if (nameEl) out['Agent Adı'] = nameEl.textContent.trim();
-            if (phoneEl) out['Agent Telefon'] = phoneEl.textContent.trim();
+            const agentNameEl = document.querySelector('.user-info-agent h3, .userName, .classifiedUserName');
+            if (agentNameEl) out['Agent Adı'] = agentNameEl.textContent.trim();
+          } catch {}
+
+          // Mobile phone from user-info-phones: find dl-group where dt="Cep", get dd value
+          try {
+            const phonesContainer = document.querySelector('.user-info-phones');
+            if (phonesContainer) {
+              const dlGroups = phonesContainer.querySelectorAll('.dl-group');
+              for (const dlGroup of dlGroups) {
+                const dt = dlGroup.querySelector('dt');
+                const dd = dlGroup.querySelector('dd');
+                if (dt && dd && dt.textContent.trim() === 'Cep') {
+                  out['Agent Telefon'] = dd.textContent.trim();
+                  break;
+                }
+              }
+            }
+            // Fallback to old selectors if not found
+            if (!out['Agent Telefon']) {
+              const phoneEl = document.querySelector('.phone, .pretty-phone-part, a.phone');
+              if (phoneEl) out['Agent Telefon'] = phoneEl.textContent.trim();
+            }
+          } catch {}
+
+          // Agency name from user-info-store-name link title
+          try {
+            const storeLink = document.querySelector('.user-info-store-name a');
+            if (storeLink) {
+              out['Emlak Ofisi'] = storeLink.getAttribute('title') || storeLink.textContent.trim();
+            }
           } catch {}
 
           // Images: ONLY collect from .classifiedDetailMainPhoto label_images_* picture img
@@ -261,8 +342,8 @@ async function fetchSyncDataForSource(sourceId) {
       // Emit debug info to popup for every call (success or failure)
       await emitApiDebug({ method: 'GET', url, resp });
       if (!resp.ok) {
-        // For 401/403, still log but return empty to indicate no data
-        if (resp.status === 401 || resp.status === 403) {
+        // For 400/401/403, return empty - 400 means property doesn't exist yet (not an error)
+        if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
           return [];
         }
         try { console.error('[SAHI][sync] GET failed', { url, status: resp.status, statusText: resp.statusText }); } catch {}
@@ -341,7 +422,8 @@ async function uploadNewImagesIfNeeded(enriched, sendResult) {
   }
 }
 
-// Helper: perform initialization sync for a given tab/url when logged in
+// Helper: perform initialization for a given tab/url - only caches scraped data locally
+// Does NOT call sync endpoints (those should only be called after property is created)
 async function doInitSyncForTab(tabId, url) {
   try {
     const isDetail = isSahibindenDetailUrl(url || '');
@@ -350,32 +432,21 @@ async function doInitSyncForTab(tabId, url) {
     if (res && res.success && res.data) {
       const enriched = await enrichWithExternal(res.data || {});
       const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
-      // If logged in, fetch remote sync data (notes + images) ONCE and compute diffs locally.
-      const { jwt } = await getAuthAndBase();
-      if (jwt && sourceId) {
-        const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
-        // Compute new images by diffing scraped vs. remote, without triggering another network call
-        const remoteImages = sync?.images || [];
-        const newImageUrls = diffNewImages(scrapedImageUrls, remoteImages);
+      // Cache scraped data locally - sync data will be fetched after property is created
+      lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
 
-        // Cache last tab data including computed new images
-        lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
-
-        // Notify popup with the same sync payload to avoid duplicate fetches
-        try {
-          chrome.runtime.sendMessage({
-            action: 'syncStatus',
-            ok: !!sync?.ok,
-            sourceId,
-            ilanNo,
-            notes: sync?.notes || [],
-            images: remoteImages
-          });
-        } catch (_) {}
-      } else {
-        // Not logged in or missing sourceId: cache scraped basics without newImageUrls
-        lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
-      }
+      // Notify popup with scraped info (no sync data yet - property may not exist)
+      try {
+        chrome.runtime.sendMessage({
+          action: 'syncStatus',
+          ok: false,
+          sourceId,
+          ilanNo,
+          notes: [],
+          images: [],
+          pendingSync: true  // indicates sync data not yet fetched
+        });
+      } catch (_) {}
     }
   } catch (_) {}
 }
@@ -430,12 +501,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const result = await scrapeDetailInPage(tabId, url);
       let enrichedData = null;
       try {
-        // Cache last scraped info for the tab and compute sync diffs
+        // Cache last scraped info for the tab (newImageUrls computed after property creation)
         if (result && result.success && result.data) {
           enrichedData = await enrichWithExternal(result.data || {});
           const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enrichedData);
-          const newImageUrls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
-          lastTabData.set(tabId, { url, scraped: enrichedData, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+          // Cache without newImageUrls - will be computed after property is created in backend
+          lastTabData.set(tabId, { url, scraped: enrichedData, sourceId, ilanNo, scrapedImageUrls, newImageUrls: [] });
         }
         // Fire-and-forget auto send to API if scraping succeeded
         if (result && result.success && result.data) {
@@ -443,8 +514,31 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           (async () => {
             try {
               const enriched = enrichedData || await enrichWithExternal(result.data || {});
+              // First create/update the property in the backend
               const res = await postSinglePropertyToEmlak(enriched);
+              // Only after property exists, compute new images and upload them
               await uploadNewImagesIfNeeded(enriched, res);
+              // Update cache with computed newImageUrls now that property exists
+              if (res?.ok) {
+                const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
+                // Now that property exists, fetch sync data from backend
+                const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
+                const remoteImages = sync?.images || [];
+                const newImageUrls = diffNewImages(scrapedImageUrls, remoteImages);
+                lastTabData.set(tabId, { url, scraped: enriched, sourceId, ilanNo, scrapedImageUrls, newImageUrls });
+                // Notify popup with actual sync data
+                try {
+                  chrome.runtime.sendMessage({
+                    action: 'syncStatus',
+                    ok: !!sync?.ok,
+                    sourceId,
+                    ilanNo,
+                    notes: sync?.notes || [],
+                    images: remoteImages,
+                    pendingSync: false
+                  });
+                } catch (_) {}
+              }
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: !!res?.ok, error: res?.error || null }); } catch (_) {}
             } catch (e) {
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
@@ -665,6 +759,38 @@ function splitCityDistrict(locationText) {
   };
 }
 
+function inferListingType(url) {
+  const u = String(url || '').toLowerCase();
+  if (u.includes('/kiralik/') || u.includes('-kiralik-')) return 'RENT';
+  if (u.includes('/satilik/') || u.includes('-satilik-')) return 'SALE';
+  return 'SALE'; // default to SALE if unable to determine
+}
+
+function inferPriceCurrency(priceText) {
+  const p = String(priceText || '').toUpperCase();
+  if (p.includes('$') || p.includes('USD')) return 'USD';
+  if (p.includes('€') || p.includes('EUR')) return 'EUR';
+  if (p.includes('£') || p.includes('GBP')) return 'GBP';
+  return 'TRY'; // default to Turkish Lira
+}
+
+// Translate Turkish field names to English and extract values from scraped data
+function extractTranslatedFields(scraped) {
+  const translated = {};
+  const s = scraped || {};
+
+  for (const [turkishKey, englishKey] of Object.entries(FIELD_NAME_TRANSLATIONS)) {
+    if (s.hasOwnProperty(turkishKey) && s[turkishKey] !== undefined && s[turkishKey] !== null) {
+      const value = String(s[turkishKey]).trim();
+      if (value) {
+        translated[englishKey] = value;
+      }
+    }
+  }
+
+  return translated;
+}
+
 function mapToPropertyDto(scraped) {
   const s = scraped || {};
   const url = s.URL || '';
@@ -680,16 +806,30 @@ function mapToPropertyDto(scraped) {
   const { city, district, neighborhood } = splitCityDistrict(locText);
   const contactName = s['Agent Adı'] || s['İletişim'] || '';
   const contactPhone = s['Agent Telefon'] || '';
+  const agencyName = s['Emlak Ofisi'] || '';
   const listingFrom = s['Kimden'] || '';
 
+  // Infer listing type (SALE/RENT) and currency from URL and price text
+  const type = inferListingType(url);
+  const priceCurrency = inferPriceCurrency(priceText);
+
+  // Extract and translate all classifiedInfoList fields to English
+  const translatedFields = extractTranslatedFields(s);
+
   // Construct DTO – align with docs/cr.md proposed schema (server will ignore unknowns)
+  // Start with translated fields so explicit mappings below can override if needed
   const dto = {
+    // Translated fields from classifiedInfoList (English keys)
+    ...translatedFields,
+    // Core fields (explicit mappings take precedence)
     id: id || null,
     url,
     title,
     description,
     priceText,
     price,
+    priceCurrency,
+    type,
     city,
     district,
     neighborhood,
@@ -700,6 +840,7 @@ function mapToPropertyDto(scraped) {
     longitude,
     contactName,
     contactPhone,
+    agencyName,
     listingFrom,
     // Enrichment fields carried from scraping/integration outputs (migrated from chrome-ext)
     frontageText: s['Cephe'] || '',
@@ -925,34 +1066,6 @@ async function uploadImagesForProperty(sourceId, imageUrls = []) {
       const dataUrl = rawBase64 && rawBase64.startsWith('data:')
         ? rawBase64
         : `data:${ct};base64,${rawBase64}`;
-
-      // Save a copy of the image into the Downloads folder using the image name
-      try {
-        const deriveImageFilename = (urlStr, contentType) => {
-          try {
-            const u = new URL(urlStr);
-            let name = (u.pathname.split('/').pop() || '').split('?')[0] || 'image';
-            // ensure extension
-            if (!/\.(png|jpe?g|webp|gif)$/i.test(name)) {
-              const ext = contentType?.includes('png') ? 'png'
-                : contentType?.includes('gif') ? 'gif'
-                : contentType?.includes('webp') ? 'webp'
-                : 'jpg';
-              name = name + '.' + ext;
-            }
-            return name;
-          } catch (_) {
-            return 'image.jpg';
-          }
-        };
-        // Save into a subfolder under the default Downloads directory
-        // Chrome downloads API only allows a relative path; this will create
-        // ~/Downloads/scrapped/ on macOS (or the equivalent on other OSes)
-        const filename = 'scrapped/' + deriveImageFilename(imgUrl, ct);
-        // Use Chrome downloads API; conflictAction to keep multiple copies if needed
-        console.log('image ', filename);
-        chrome.downloads?.download({ url: dataUrl, filename, saveAs: false, conflictAction: 'uniquify' });
-      } catch (_) {}
 
       const image = {
         base64: dataUrl,
