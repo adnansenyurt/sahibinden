@@ -244,49 +244,60 @@ async function emitApiDebug({ method, url, resp, error, note, bodyLimit = 1000 }
   } catch (_) {}
 }
 
-// Optional enrichment using external systems (Overpass + Gemini)
+// Optional enrichment using external systems (Overpass + Gemini) - run in parallel
 async function enrichWithExternal(scraped) {
   try {
     const out = { ...scraped };
 
+    // Fetch all storage values needed upfront
+    const vals = await new Promise((res) => chrome.storage.local.get(['sahi:openDirs', 'sahi:criteria', 'sahi:geminiKey'], res));
+
+    // Prepare parallel tasks
+    const tasks = [];
+
     // 1) Openness via Overpass if coordinates available
-    try {
-      const mapUrl = out['Harita'] || '';
-      const { latitude, longitude } = parseCoordsFromMapUrl(mapUrl);
-      if (typeof calculateOpenness === 'function' && latitude && longitude) {
-        // Selected directions can be stored optionally; default to all
-        const vals = await new Promise((res) => chrome.storage.local.get(['sahi:openDirs'], res));
-        const dirs = Array.isArray(vals['sahi:openDirs']) ? vals['sahi:openDirs'] : undefined;
-        const openness = await calculateOpenness(latitude, longitude, dirs);
-        // Convert to human-readable strings similar to chrome-ext outputs
-        try {
-          const parts = [];
-          for (const [dir, info] of Object.entries(openness || {})) {
-            const status = info?.status || '';
-            const reason = info?.reason ? ` (${info.reason})` : '';
-            parts.push(`${dir}: ${status}${reason}`);
-          }
-          if (parts.length) {
-            out['Çevre'] = parts.join(' | ');
-            out['Cephe Çevre'] = out['Çevre'];
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
+    const mapUrl = out['Harita'] || '';
+    const { latitude, longitude } = parseCoordsFromMapUrl(mapUrl);
+    if (typeof calculateOpenness === 'function' && latitude && longitude) {
+      const dirs = Array.isArray(vals['sahi:openDirs']) ? vals['sahi:openDirs'] : undefined;
+      tasks.push(
+        calculateOpenness(latitude, longitude, dirs)
+          .then(openness => {
+            try {
+              const parts = [];
+              for (const [dir, info] of Object.entries(openness || {})) {
+                const status = info?.status || '';
+                const reason = info?.reason ? ` (${info.reason})` : '';
+                parts.push(`${dir}: ${status}${reason}`);
+              }
+              if (parts.length) {
+                out['Çevre'] = parts.join(' | ');
+                out['Cephe Çevre'] = out['Çevre'];
+              }
+            } catch (_) {}
+          })
+          .catch(() => {})
+      );
+    }
 
     // 2) Gemini summary if criteria and key exist
-    try {
-      const vals = await new Promise((res) => chrome.storage.local.get(['sahi:criteria', 'sahi:geminiKey'], res));
-      const criteriaRaw = vals['sahi:criteria'];
-      const apiKey = vals['sahi:geminiKey'];
-      let criteria = [];
-      if (Array.isArray(criteriaRaw)) criteria = criteriaRaw;
-      else if (typeof criteriaRaw === 'string') criteria = criteriaRaw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      if (typeof generateSummaryWithGemini === 'function' && apiKey && criteria.length) {
-        const summary = await generateSummaryWithGemini(criteria, out, apiKey).catch(() => '');
-        if (summary) out['Özet'] = summary;
-      }
-    } catch (_) {}
+    const criteriaRaw = vals['sahi:criteria'];
+    const apiKey = vals['sahi:geminiKey'];
+    let criteria = [];
+    if (Array.isArray(criteriaRaw)) criteria = criteriaRaw;
+    else if (typeof criteriaRaw === 'string') criteria = criteriaRaw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    if (typeof generateSummaryWithGemini === 'function' && apiKey && criteria.length) {
+      tasks.push(
+        generateSummaryWithGemini(criteria, out, apiKey)
+          .then(summary => { if (summary) out['Özet'] = summary; })
+          .catch(() => {})
+      );
+    }
+
+    // Run both enrichments in parallel
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
+    }
 
     return out;
   } catch (_) {

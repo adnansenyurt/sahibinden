@@ -1,3 +1,24 @@
+// In-memory cache for openness results (keyed by rounded coordinates)
+const opennessCache = new Map();
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_PRECISION = 5; // decimal places for coordinate rounding (~1m precision)
+
+function getCacheKey(lat, lon, directions) {
+    const roundedLat = lat.toFixed(CACHE_PRECISION);
+    const roundedLon = lon.toFixed(CACHE_PRECISION);
+    const dirKey = directions.slice().sort().join(',');
+    return `${roundedLat},${roundedLon}:${dirKey}`;
+}
+
+function cleanExpiredCache() {
+    const now = Date.now();
+    for (const [key, entry] of opennessCache) {
+        if (now - entry.timestamp > CACHE_TTL_MS) {
+            opennessCache.delete(key);
+        }
+    }
+}
+
 /**
  * Main function to calculate the "openness" on four sides of a given coordinate.
  * @param {number} lat The latitude of the central point.
@@ -8,31 +29,54 @@
 async function calculateOpenness(lat, lon, selectedDirections) {
     const all = ['North', 'East', 'South', 'West'];
     const directions = Array.isArray(selectedDirections) && selectedDirections.length > 0 ? selectedDirections : all;
-    const results = {};
+
+    // Check cache first
+    const cacheKey = getCacheKey(lat, lon, directions);
+    const cached = opennessCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+        return cached.results;
+    }
+
+    // Clean expired entries periodically
+    if (opennessCache.size > 50) {
+        cleanExpiredCache();
+    }
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    for (const direction of directions) {
-        try {
-            // Be polite to Overpass: brief delay between directional queries to avoid 429 rate limits
-            const jitter = Math.floor(Math.random() * 250);
-            await sleep(800 + jitter);
-            // 1. Define the search area (a rectangle) for the current direction.
-            const polygon = getSearchPolygon(lat, lon, direction);
+    // Run direction queries in parallel with staggered starts (100ms apart) to avoid rate limits
+    const directionPromises = directions.map((direction, index) => {
+        return (async () => {
+            // Stagger start times: 0ms, 100ms, 200ms, 300ms
+            const staggerDelay = index * 100 + Math.floor(Math.random() * 50);
+            await sleep(staggerDelay);
 
-            // 2. Build the API query with this polygon.
-            const query = buildOverpassQuery(polygon);
+            try {
+                // 1. Define the search area (a rectangle) for the current direction.
+                const polygon = getSearchPolygon(lat, lon, direction);
 
-            // 3. Call the Overpass API.
-            const data = await queryOverpass(query);
+                // 2. Build the API query with this polygon.
+                const query = buildOverpassQuery(polygon);
 
-            // 4. Analyze the returned map features to determine the status.
-            results[direction] = analyzeZoneResults(data);
-        } catch (error) {
-            // Swallow logging for openness; keep result consistency
-            results[direction] = { status: 'Error', reason: error.message };
-        }
+                // 3. Call the Overpass API.
+                const data = await queryOverpass(query);
+
+                // 4. Analyze the returned map features to determine the status.
+                return { direction, result: analyzeZoneResults(data) };
+            } catch (error) {
+                return { direction, result: { status: 'Error', reason: error.message } };
+            }
+        })();
+    });
+
+    const directionResults = await Promise.all(directionPromises);
+    const results = {};
+    for (const { direction, result } of directionResults) {
+        results[direction] = result;
     }
+
+    // Cache the results
+    opennessCache.set(cacheKey, { results, timestamp: Date.now() });
 
     return results;
 }
