@@ -207,6 +207,30 @@ async function scrapeDetailInPage(tabId, url) {
             }
           } catch {}
 
+          // Location: extract from gaPageViewTrackingJson and format as "İl / İlçe / Mahalle"
+          try {
+            const gaEl = document.getElementById('gaPageViewTrackingJson');
+            if (gaEl) {
+              const jsonStr = gaEl.getAttribute('data-json');
+              if (jsonStr) {
+                const trackData = JSON.parse(jsonStr);
+                const customVars = trackData.customVars || [];
+                let city = '', district = '', neighborhood = '';
+                for (let i = 0; i < customVars.length; i++) {
+                  const cv = customVars[i];
+                  if (cv.name === 'loc2' && cv.value) city = cv.value;
+                  if (cv.name === 'loc3' && cv.value) district = cv.value;
+                  if (cv.name === 'loc5' && cv.value) neighborhood = cv.value;
+                }
+                // Build "İl / İlçe" format that existing code expects
+                if (city || district) {
+                  const parts = [city, district, neighborhood].filter(function(p) { return p; });
+                  out['İl / İlçe'] = parts.join(' / ');
+                }
+              }
+            }
+          } catch (e) { /* ignore location extraction errors */ }
+
           return { success: true, data: out };
         } catch (e) {
           return { error: String(e && e.message ? e.message : e) };
