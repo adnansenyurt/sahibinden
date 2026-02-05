@@ -447,7 +447,9 @@ async function computeNewImagesSafe(sourceId, scrapedImageUrls) {
 
 async function uploadNewImagesIfNeeded(enriched, sendResult) {
   const { sourceId, scrapedImageUrls } = deriveScrapeMeta(enriched || {});
-  if (!sendResult?.ok || !sourceId || !scrapedImageUrls.length) return;
+  // Allow image sync if property was created (ok) or already exists (propertyExists)
+  const canSync = sendResult?.ok || sendResult?.propertyExists;
+  if (!canSync || !sourceId || !scrapedImageUrls.length) return;
   const urls = await computeNewImagesSafe(sourceId, scrapedImageUrls);
   if (!urls.length) return;
   try {
@@ -553,8 +555,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               const res = await postSinglePropertyToEmlak(enriched);
               // Only after property exists, compute new images and upload them
               await uploadNewImagesIfNeeded(enriched, res);
-              // Update cache with computed newImageUrls now that property exists
-              if (res?.ok) {
+              // Update cache with computed newImageUrls now that property exists (or already existed)
+              const canSyncData = res?.ok || res?.propertyExists;
+              if (canSyncData) {
                 const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
                 // Now that property exists, fetch sync data from backend
                 const sync = await fetchSyncDataForSource(sourceId).catch(() => ({ ok: false, images: [], notes: [] }));
@@ -574,7 +577,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                   });
                 } catch (_) {}
               }
-              try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: !!res?.ok, error: res?.error || null }); } catch (_) {}
+              try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: canSyncData, error: canSyncData ? null : (res?.error || null) }); } catch (_) {}
             } catch (e) {
               try { chrome.runtime.sendMessage({ action: 'autoSendDone', ok: false, error: String(e && e.message ? e.message : e) }); } catch (_) {}
             }
@@ -983,6 +986,8 @@ async function postSinglePropertyToEmlak(obj) {
 
     if (!resp || !resp.ok) {
       const status = resp ? resp.status : 'no_response';
+      // Property already exists (409 Conflict) - still allow image sync
+      const propertyExists = resp && resp.status === 409;
       let tail = '';
       if (resp) {
         let txt = await resp.text().catch(() => '');
@@ -999,9 +1004,9 @@ async function postSinglePropertyToEmlak(obj) {
         tail = `: ${lastErrText}`;
       }
       const diag = attempts.length ? ` | attempts: ${attempts.join(' ; ')}` : '';
-      return { ok: false, status, error: `Emlak send failed ${tail}${diag}` };
+      return { ok: false, propertyExists, status, error: `Emlak send failed ${tail}${diag}` };
     }
-    return { ok: true };
+    return { ok: true, propertyExists: false };
   } catch (e) {
     return { ok: false, error: String(e && e.message ? e.message : e) };
   }
