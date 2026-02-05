@@ -423,6 +423,32 @@ async function fetchSyncDataForSource(sourceId) {
   return { ok: true, images: Array.from(new Set(imageArr)), notes };
 }
 
+// Check if a property already exists in the backend by trying to fetch its sync data
+// Returns true if property exists, false if it doesn't (400 response)
+async function checkPropertyExists(sourceId) {
+  if (!sourceId) return false;
+  const { jwt, baseUrl } = await getAuthAndBase();
+  if (!jwt) return false;
+  try {
+    await ensureCorsBypassForBase(baseUrl);
+  } catch {}
+  try {
+    const url = baseUrl + '/api/custom/property-import/sync-images?sourceId=' + encodeURIComponent(sourceId);
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${jwt}`, 'accept': '*/*' }
+    });
+    // 400 means property doesn't exist, 200 means it exists
+    // 401/403 means auth issue - treat as "unknown", default to not exists to allow posting
+    if (resp.status === 400) return false;
+    if (resp.ok) return true;
+    return false; // Auth issues or other errors - assume doesn't exist
+  } catch (e) {
+    console.warn('[SAHI] checkPropertyExists error:', e);
+    return false; // Network error - assume doesn't exist
+  }
+}
+
 async function computeNewImagesFor(sourceId, scrapedUrls = []) {
   const normScraped = (Array.isArray(scrapedUrls) ? scrapedUrls : []).map(normalizeImageUrl).filter(Boolean);
   if (!sourceId || normScraped.length === 0) return [];
@@ -551,9 +577,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           (async () => {
             try {
               const enriched = enrichedData || await enrichWithExternal(result.data || {});
-              // First create/update the property in the backend
-              const res = await postSinglePropertyToEmlak(enriched);
-              // Only after property exists, compute new images and upload them
+              const { sourceId, ilanNo, scrapedImageUrls } = deriveScrapeMeta(enriched);
+
+              // Check if property already exists before posting
+              const alreadyExists = await checkPropertyExists(sourceId);
+              let res;
+              if (alreadyExists) {
+                // Property exists - skip posting, just sync images
+                res = { ok: true, propertyExists: true, skippedPost: true };
+              } else {
+                // Property doesn't exist - create it
+                res = await postSinglePropertyToEmlak(enriched);
+              }
+
+              // Sync images regardless of whether property was just created or already existed
               await uploadNewImagesIfNeeded(enriched, res);
               // Update cache with computed newImageUrls now that property exists (or already existed)
               const canSyncData = res?.ok || res?.propertyExists;
@@ -598,7 +635,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: false, error: 'Geçerli ilan numarası bulunamadı.', reason: 'missing_source_id' });
         return;
       }
-      const res = await postSinglePropertyToEmlak(data);
+      // Check if property already exists before posting
+      const alreadyExists = await checkPropertyExists(sourceId);
+      let res;
+      if (alreadyExists) {
+        // Property exists - skip posting, just sync images
+        res = { ok: true, propertyExists: true, skippedPost: true };
+      } else {
+        // Property doesn't exist - create it
+        res = await postSinglePropertyToEmlak(data);
+      }
       await uploadNewImagesIfNeeded(data, res);
       sendResponse(res);
       return;
